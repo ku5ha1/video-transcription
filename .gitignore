@@ -1,2 +1,5 @@
 .venv/
 *.mp3
+*.txt
+.env
+__pycache__/
