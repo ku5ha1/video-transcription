@@ -1,7 +1,6 @@
 import tempfile
 from moviepy.editor import VideoFileClip
 
-
 def extract_audio_from_video(video_path: str) -> str:
     print(f"\nExtracting audio from video: {video_path}")
     video = VideoFileClip(video_path)

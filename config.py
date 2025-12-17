@@ -1,3 +1,8 @@
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
 VIDEO_FILE = "sample.mp4"
 AUDIO_FILE = "test.mp3"
 DEVICE = "cpu"
