@@ -1,4 +1,4 @@
-# Video Call Transcription & Metadata MVP
+# Video Transcription System
 
 Modular pipeline to extract audio, transcribe, and tag video call metadata (Emotion/Tone) with speaker diarization.
 
@@ -38,3 +38,13 @@ docker run --rm -v "$(pwd)":/app --env-file .env video-transcription sample2.mp4
    - inferred speaker label
    - transcribed text
    - Emotion and Tone tags
+
+```
+
+### Module Overview
+- main.py: CLI & Orchestration.
+- video_processor.py: Video-to-audio extraction.
+- transcription.py: ASR implementation.
+- speaker_diarization.py: Speaker identification logic.
+- metadata.py: Emotion and Tone classification.
+- processor.py: Data merging and formatting.
