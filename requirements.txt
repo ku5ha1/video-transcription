@@ -1,0 +1,10 @@
+transformers
+accelerate
+faster-whisper
+# pyannote.audio>=4.0.1
+python-dotenv
+numpy>=2.0.2,<2.1.0
+matplotlib
+huggingface-hub
+moviepy==1.0.3
+assemblyai

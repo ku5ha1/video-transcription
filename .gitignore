@@ -1,7 +1,7 @@
 .venv/
 *.mp3
 *.mp4
-*.txt
+output/
 .env
 __pycache__/
 output/

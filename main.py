@@ -35,7 +35,7 @@ def save_transcript(transcript: list, output_file: str):
     with open(output_file, 'w', encoding='utf-8') as f:
         f.write("\n".join(transcript))
     
-    print("\n--- FINAL DELIVERABLE OUTPUT ---")
+    print("\n--- FINAL OUTPUT ---")
     print("\n".join(transcript))
     print(f"\nSUCCESS: Transcript saved to {output_file}")
 
