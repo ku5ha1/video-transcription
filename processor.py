@@ -3,13 +3,14 @@ import metadata
 import utils
 import speaker_diarization
 
-def annotate_segment(segment, speaker_id: str) -> str:
+
+def annotate_segment(segment, speaker_label: str) -> str:
     text = segment.text.strip()
     metadata_dict = metadata.get_metadata(text)
     timestamp = utils.format_timestamp(segment.start)
     
     return (
-        f"{timestamp} Speaker {speaker_id}: \"{text}\" "
+        f"{timestamp} {speaker_label}: \"{text}\" "
         f"[Emotion: {metadata_dict['Emotion']}, Tone: {metadata_dict['Tone']}]"
     )
 
@@ -24,17 +25,22 @@ def process_video_call(audio_path: str) -> list:
     
     transcript = []
     fallback_speaker = 1
+    speaker_index_map = {}
+    next_speaker_index = 1
     
     for segment in segments:
-        speaker_id = alignment_map.get(segment.start)
+        raw_speaker_id = alignment_map.get(segment.start)
         
-        if speaker_id is None:
-            speaker_id = f"Speaker {fallback_speaker}"
+        if raw_speaker_id is None:
+            speaker_label = f"Speaker {fallback_speaker}"
             fallback_speaker = 2 if fallback_speaker == 1 else 1
         else:
-            speaker_id = f"Speaker {speaker_id}"
+            if raw_speaker_id not in speaker_index_map:
+                speaker_index_map[raw_speaker_id] = next_speaker_index
+                next_speaker_index += 1
+            speaker_label = f"Speaker {speaker_index_map[raw_speaker_id]}"
         
-        annotated_line = annotate_segment(segment, speaker_id)
+        annotated_line = annotate_segment(segment, speaker_label)
         transcript.append(annotated_line)
     
     return transcript
