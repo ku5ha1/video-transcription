@@ -20,3 +20,12 @@ python main.py sample2.mp4
 # Docker
 docker build -t video-transcription .
 docker run --rm -v "$(pwd)":/app --env-file .env video-transcription sample2.mp4
+```
+
+### Module Overview
+- main.py: CLI & Orchestration.
+- video_processor.py: Video-to-audio extraction.
+- transcription.py: ASR implementation.
+- speaker_diarization.py: Speaker identification logic.
+- metadata.py: Emotion and Tone classification.
+- processor.py: Data merging and formatting.
