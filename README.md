@@ -1,4 +1,4 @@
-# Video Call Transcription & Metadata MVP
+# Video Transcription System
 
 Modular pipeline to extract audio, transcribe, and tag video call metadata (Emotion/Tone) with speaker diarization.
 
