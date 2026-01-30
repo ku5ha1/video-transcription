@@ -8,3 +8,7 @@ matplotlib
 huggingface-hub
 moviepy==1.0.3
 assemblyai
+fastapi
+uvicorn[standard]
+python-multipart
+pydantic-settings
