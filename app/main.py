@@ -11,7 +11,7 @@ app.include_router(transcription.router, prefix="/api/v1", tags=["transcription"
 
 @app.get("/")
 async def root():
-    return {"message": "Video Transcription API"=}
+    return {"message": "Video Transcription API"}
 
 @app.get("/health")
 async def health_check():
