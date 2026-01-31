@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     # App settings
     app_name: str = "Video Transcription API"
     debug: bool = False
+    log_level: str = "INFO"
     
     # Model settings
     device: str = "cpu"
@@ -13,6 +14,7 @@ class Settings(BaseSettings):
     
     # File settings
     max_file_size: int = 100 * 1024 * 1024  # 100MB
+    allowed_video_extensions: List[str] = [".mp4", ".avi", ".mov", ".mkv", ".webm"]
     upload_dir: str = "uploads"
     output_dir: str = "output"
     
