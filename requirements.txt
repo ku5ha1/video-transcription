@@ -12,3 +12,5 @@ fastapi
 uvicorn[standard]
 python-multipart
 pydantic-settings
+# Docker health check
+curl
