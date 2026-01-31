@@ -2,6 +2,8 @@ from fastapi import FastAPI
 from app.api import transcription
 from app.core.config import settings
 from app.core.logging import setup_logging, get_logger
+from celery.result import AsyncResult
+from app.core.celery import celery_app, heavy_lifting_task
 
 # Setup logging
 setup_logging(settings.log_level)
@@ -31,3 +33,17 @@ async def root():
 async def health_check():
     logger.info("Health check endpoint accessed")
     return {"status": "healthy", "service": settings.app_name}
+
+@app.post("/run-task/{name}")
+async def run_task(name: str):
+    task = heavy_lifting_task.delay(name)
+    return {"task_id": task.id, "status": "Task submitted to the kitchen!"}
+
+@app.get("/status/{task_id}")
+async def get_status(task_id: str):
+    result = AsyncResult(task_id, app=celery_app)
+    return {
+        "task_id": task_id,
+        "status": result.status, 
+        "result": result.result  
+    }
