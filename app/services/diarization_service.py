@@ -1,5 +1,8 @@
 import os
 import assemblyai as aai
+from dotenv import load_dotenv
+
+load_dotenv()
 
 class DiarizationService:
     """Service for speaker diarization using AssemblyAI"""

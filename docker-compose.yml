@@ -20,6 +20,7 @@ services:
       - qdrant
     volumes:
       - ./app:/app/app
+      - shared_files:/tmp/shared
     networks:
       - transcription-network
 
@@ -63,6 +64,7 @@ services:
       - minio
     volumes:
       - ./app:/app/app
+      - shared_files:/tmp/shared
     networks:
       - transcription-network
 
@@ -96,6 +98,7 @@ volumes:
   redis_data:
   minio_data:
   qdrant_data:
+  shared_files:
 
 networks:
   transcription-network:
