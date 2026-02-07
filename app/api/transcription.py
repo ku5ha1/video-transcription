@@ -1,18 +1,17 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from app.models.transcription import TranscriptionResponse
 from app.models.task import TaskResponse, TaskStatusResponse
-from app.services.transcription_service import TranscriptionService
+from app.services.minio_service import MinIOService
 from app.core.exceptions import FileValidationError, create_http_exception
 from app.core.config import settings
 from app.core.logging import get_logger
 from app.core.celery import celery_app, process_video_task
 from celery.result import AsyncResult
-import tempfile
-import os
+import uuid
 
 logger = get_logger("api.transcription")
 router = APIRouter()
-transcription_service = TranscriptionService()
+minio_service = MinIOService()
 
 def validate_file(file: UploadFile) -> None:
     """Validate uploaded file"""
@@ -48,23 +47,25 @@ async def transcribe_video(file: UploadFile = File(...)):
         validate_file(file)
         logger.info("File validation passed", extra={"extra_fields": {"filename": file.filename}})
         
-        # Save uploaded file to shared directory
-        os.makedirs("/tmp/shared", exist_ok=True)
-        temp_video = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4', dir="/tmp/shared")
+        # Read file content
         content = await file.read()
-        temp_video.write(content)
-        temp_video.close()
-        temp_video_path = temp_video.name
         
-        logger.info("File saved temporarily", extra={
-            "extra_fields": {"filename": file.filename, "temp_path": temp_video_path}
+        # Generate unique object name
+        file_ext = "." + file.filename.split(".")[-1].lower()
+        object_name = f"{uuid.uuid4()}{file_ext}"
+        
+        # Upload to MinIO
+        minio_service.upload_file(content, object_name, file.content_type or "video/mp4")
+        
+        logger.info("File uploaded to MinIO", extra={
+            "extra_fields": {"filename": file.filename, "object_name": object_name}
         })
         
-        # Submit task to Celery
-        task = process_video_task.delay(temp_video_path, file.filename)
+        # Submit task to Celery with MinIO object name
+        task = process_video_task.delay(object_name, file.filename)
         
         logger.info("Task submitted to Celery", extra={
-            "extra_fields": {"filename": file.filename, "task_id": task.id}
+            "extra_fields": {"filename": file.filename, "task_id": task.id, "object_name": object_name}
         })
         
         return TaskResponse(
