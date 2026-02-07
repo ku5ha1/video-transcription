@@ -3,6 +3,7 @@ from celery import Celery
 from app.services.transcription_service import TranscriptionService
 from app.services.minio_service import MinIOService
 from app.core.logging import get_logger
+from app.core.config import settings
 import tempfile
 import os
 
@@ -10,8 +11,8 @@ logger = get_logger("celery")
 
 celery_app = Celery(
     "worker",
-    broker="redis://redis:6379/0",
-    backend="redis://redis:6379/0"
+    broker=settings.redis_url,
+    backend=settings.redis_url
 )
 
 @celery_app.task

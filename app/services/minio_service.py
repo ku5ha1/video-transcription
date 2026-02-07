@@ -2,7 +2,6 @@ from minio import Minio
 from minio.error import S3Error
 from app.core.config import settings
 from app.core.logging import get_logger
-import os
 from typing import BinaryIO
 
 logger = get_logger("services.minio")
@@ -12,10 +11,10 @@ class MinIOService:
     
     def __init__(self):
         self.client = Minio(
-            os.getenv("MINIO_ENDPOINT", "minio:9000"),
-            access_key=os.getenv("MINIO_ACCESS_KEY", "minioadmin"),
-            secret_key=os.getenv("MINIO_SECRET_KEY", "minioadmin"),
-            secure=False  # Set to True for HTTPS
+            settings.minio_endpoint,
+            access_key=settings.minio_access_key,
+            secret_key=settings.minio_secret_key,
+            secure=settings.minio_secure
         )
         self.bucket_name = "video-uploads"
         self._ensure_bucket_exists()

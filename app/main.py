@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from app.api import transcription
+from app.api import transcription, health
 from app.core.config import settings
 from app.core.logging import setup_logging, get_logger
 
@@ -9,10 +9,13 @@ logger = get_logger("main")
 
 app = FastAPI(
     title="Video Transcription System",
-    description="AI-powered video transcription with emotion and tone analysis"
+    description="AI-powered video transcription with emotion and tone analysis",
+    version="1.0.0"
 )
 
+# Include routers
 app.include_router(transcription.router, prefix="/api/v1", tags=["transcription"])
+app.include_router(health.router, tags=["health"])
 
 @app.on_event("startup")
 async def startup_event():
@@ -25,9 +28,8 @@ async def shutdown_event():
 @app.get("/")
 async def root():
     logger.info("Root endpoint accessed")
-    return {"message": "Video Transcription API"}
-
-@app.get("/health")
-async def health_check():
-    logger.info("Health check endpoint accessed")
-    return {"status": "healthy", "service": settings.app_name}
+    return {
+        "message": "Video Transcription API",
+        "version": "1.0.0",
+        "docs": "/docs"
+    }

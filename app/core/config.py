@@ -18,6 +18,21 @@ class Settings(BaseSettings):
     upload_dir: str = "uploads"
     output_dir: str = "output"
     
+    # Database
+    database_url: str = "postgresql://postgres:password@localhost:5432/transcription_db"
+    
+    # Redis
+    redis_url: str = "redis://localhost:6379"
+    
+    # MinIO
+    minio_endpoint: str = "localhost:9000"
+    minio_access_key: str = "minioadmin"
+    minio_secret_key: str = "minioadmin"
+    minio_secure: bool = False
+    
+    # Qdrant
+    qdrant_url: str = "http://localhost:6333"
+    
     # Emotion/Tone candidates (matching legacy config)
     candidate_emotions: List[str] = ["joy", "anger", "sadness", "excitement", "calmness", "interest", "confusion"]
     candidate_tones: List[str] = ["enthusiastic", "confident", "inquisitive", "hesitant", "professional", "sarcastic", "neutral"]
