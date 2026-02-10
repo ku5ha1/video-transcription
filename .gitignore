@@ -2,6 +2,7 @@
 *.mp3
 *.mp4
 # output/
+*.wav
 .env
 __pycache__/
 output/
