@@ -10,7 +10,13 @@ class Settings(BaseSettings):
     
     # Model settings
     device: str = "cpu"
-    model_size: str = "tiny"
+    model_size: str = "tiny"  # Deprecated, use whisper_model_id
+    
+    # Whisper settings
+    whisper_model_id: str = "deepdml/faster-whisper-large-v3-turbo-ct2"
+    whisper_compute_type: str = "int8"
+    whisper_model_cache_dir: str = "/app/models/whisper"
+    whisper_language: str = ""  # Auto-detect if empty
     
     # File settings
     max_file_size: int = 100 * 1024 * 1024  # 100MB
@@ -36,6 +42,11 @@ class Settings(BaseSettings):
     # Emotion/Tone candidates (matching legacy config)
     candidate_emotions: List[str] = ["joy", "anger", "sadness", "excitement", "calmness", "interest", "confusion"]
     candidate_tones: List[str] = ["enthusiastic", "confident", "inquisitive", "hesitant", "professional", "sarcastic", "neutral"]
+    
+    # Sherpa-ONNX Diarization settings
+    sherpa_base_dir: str = "sherpa-onnx"
+    sherpa_model_dir: str = os.getenv("SHERPA_MODEL_DIR", "sherpa-onnx")
+    sherpa_clustering_threshold: float = 0.8
     
     class Config:
         env_file = ".env"

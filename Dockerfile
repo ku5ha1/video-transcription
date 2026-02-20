@@ -4,6 +4,9 @@ FROM python:3.10-slim
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     ffmpeg \
+    wget \
+    bzip2 \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
@@ -13,9 +16,17 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Copy model download script and execute
+COPY scripts/download_models.sh /app/scripts/download_models.sh
+RUN chmod +x /app/scripts/download_models.sh && \
+    /app/scripts/download_models.sh
+
 # Copy application code
 COPY app/ ./app/
 COPY .env .
+
+# Set Python path
+ENV PYTHONPATH=/app
 
 # Expose port
 EXPOSE 8000

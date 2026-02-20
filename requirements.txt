@@ -1,20 +1,22 @@
-# transformers
-# accelerate
+transformers
+accelerate
 assemblyai
-# faster-whisper
-# pyannote-audio
+faster-whisper
 python-dotenv
-# numpy>=1.20,<2.0
-# matplotlib
+numpy>=1.20,<2.0
+matplotlib
 huggingface-hub
-# moviepy==1.0.3
-assemblyai
+moviepy==1.0.3
 fastapi
 uvicorn[standard]
 python-multipart
 pydantic-settings
-# celery
-# redis
-# minio
+celery
+redis
+minio
 httpx
 speechbrain
+sherpa-onnx
+soundfile
+torch
+torchaudio

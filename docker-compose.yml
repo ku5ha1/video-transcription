@@ -13,6 +13,10 @@ services:
       - MINIO_ACCESS_KEY=minioadmin
       - MINIO_SECRET_KEY=minioadmin
       - QDRANT_URL=http://qdrant:6333
+      - SHERPA_MODEL_DIR=/app/models/sherpa
+      - WHISPER_MODEL_ID=deepdml/faster-whisper-large-v3-turbo-ct2
+      - WHISPER_COMPUTE_TYPE=int8
+      - WHISPER_MODEL_CACHE_DIR=/app/models/whisper
     depends_on:
       - postgres
       - redis
@@ -21,6 +25,7 @@ services:
     volumes:
       - ./app:/app/app
       - shared_files:/tmp/shared
+      - whisper_models:/app/models/whisper
     networks:
       - transcription-network
 
@@ -58,6 +63,10 @@ services:
       - MINIO_ENDPOINT=minio:9000
       - MINIO_ACCESS_KEY=minioadmin
       - MINIO_SECRET_KEY=minioadmin
+      - SHERPA_MODEL_DIR=/app/models/sherpa
+      - WHISPER_MODEL_ID=deepdml/faster-whisper-large-v3-turbo-ct2
+      - WHISPER_COMPUTE_TYPE=int8
+      - WHISPER_MODEL_CACHE_DIR=/app/models/whisper
     depends_on:
       - postgres
       - redis
@@ -65,6 +74,7 @@ services:
     volumes:
       - ./app:/app/app
       - shared_files:/tmp/shared
+      - whisper_models:/app/models/whisper
     networks:
       - transcription-network
 
@@ -99,6 +109,7 @@ volumes:
   minio_data:
   qdrant_data:
   shared_files:
+  whisper_models:
 
 networks:
   transcription-network:
