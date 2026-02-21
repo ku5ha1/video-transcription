@@ -1,5 +1,7 @@
 import os
 import time
+import librosa
+import numpy as np
 from fastapi import UploadFile
 from app.models.transcription import TranscriptionResponse, TranscriptSegment
 from app.services.video_service import VideoService
@@ -31,12 +33,49 @@ class TranscriptionService:
             logger.error("Failed to initialize services", exc_info=True)
             raise
     
-    def _annotate_segment(self, segment, speaker_label: str) -> TranscriptSegment:
+    def _extract_audio_chunk(self, audio_path: str, start_time: float, end_time: float) -> tuple:
+        """
+        Extract audio chunk for a specific time segment
+        
+        Returns:
+            tuple: (audio_array, sample_rate)
+        """
+        try:
+            # Load audio with librosa
+            audio, sr = librosa.load(audio_path, sr=None, mono=False)
+            
+            # Calculate sample indices
+            start_sample = int(start_time * sr)
+            end_sample = int(end_time * sr)
+            
+            # Extract chunk
+            audio_chunk = audio[..., start_sample:end_sample]
+            
+            return audio_chunk, sr
+            
+        except Exception as e:
+            logger.error(f"Failed to extract audio chunk: {e}")
+            return None, None
+    
+    def _annotate_segment(self, segment, speaker_label: str, audio_path: str) -> TranscriptSegment:
         """Annotate a single segment with metadata"""
         try:
             text = segment.text.strip()
-            metadata_dict = self.metadata_service.get_metadata(text)
             timestamp = format_timestamp(segment.start)
+            
+            # Extract audio chunk for this segment
+            audio_chunk, sample_rate = self._extract_audio_chunk(
+                audio_path, 
+                segment.start, 
+                segment.end
+            )
+            
+            # Get metadata with both text and audio
+            metadata_dict = self.metadata_service.get_metadata(
+                text=text,
+                audio_chunk=audio_chunk,
+                sample_rate=sample_rate
+            )
             
             return TranscriptSegment(
                 timestamp=timestamp,
@@ -112,7 +151,7 @@ class TranscriptionService:
                         next_speaker_index += 1
                     speaker_label = f"Speaker {speaker_index_map[raw_speaker_id]}"
                 
-                annotated_segment = self._annotate_segment(segment, speaker_label)
+                annotated_segment = self._annotate_segment(segment, speaker_label, temp_audio_path)
                 segments.append(annotated_segment)
             
             processing_time = time.time() - start_time
@@ -216,7 +255,7 @@ class TranscriptionService:
                         next_speaker_index += 1
                     speaker_label = f"Speaker {speaker_index_map[raw_speaker_id]}"
                 
-                annotated_segment = self._annotate_segment(segment, speaker_label)
+                annotated_segment = self._annotate_segment(segment, speaker_label, temp_audio_path)
                 segments.append(annotated_segment)
             
             processing_time = time.time() - start_time

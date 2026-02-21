@@ -4,6 +4,8 @@ set -e
 echo "Creating model directories..."
 mkdir -p /app/models/sherpa
 mkdir -p /app/models/whisper
+mkdir -p /app/models/emotion
+mkdir -p /app/models/tone
 
 echo "=== Downloading Sherpa-ONNX Models ==="
 cd /app/models/sherpa
@@ -24,10 +26,33 @@ echo "Sherpa-ONNX models downloaded successfully!"
 ls -lh /app/models/sherpa/
 
 echo ""
-echo "=== Downloading Whisper Model ==="
+echo "=== Pre-downloading Enhanced NLP Models ==="
+cd /app
+
+# Download Audio Emotion Model (Wav2Vec2)
+echo "Downloading Audio Emotion Model (Dpngtm/wav2vec2-emotion-recognition)..."
+python3 -c "
+from transformers import AutoModelForAudioClassification, AutoFeatureExtractor
+model = AutoModelForAudioClassification.from_pretrained('Dpngtm/wav2vec2-emotion-recognition', cache_dir='/app/models/emotion')
+extractor = AutoFeatureExtractor.from_pretrained('Dpngtm/wav2vec2-emotion-recognition', cache_dir='/app/models/emotion')
+print('Audio Emotion Model downloaded successfully!')
+"
+
+# Download Text Tone Model (DeBERTa)
+echo "Downloading Text Tone Model (cross-encoder/nli-deberta-v3-small)..."
+python3 -c "
+from transformers import AutoModelForSequenceClassification, AutoTokenizer
+model = AutoModelForSequenceClassification.from_pretrained('cross-encoder/nli-deberta-v3-small', cache_dir='/app/models/tone')
+tokenizer = AutoTokenizer.from_pretrained('cross-encoder/nli-deberta-v3-small', cache_dir='/app/models/tone')
+print('Text Tone Model downloaded successfully!')
+"
+
+echo ""
+echo "=== Whisper Model ==="
 echo "Note: Whisper large-v3-turbo model will be downloaded on first use (~1.5GB)"
 echo "Model cache directory: /app/models/whisper"
 
 echo ""
 echo "All models setup complete!"
+
 

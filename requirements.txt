@@ -20,3 +20,4 @@ sherpa-onnx
 soundfile
 torch
 torchaudio
+librosa

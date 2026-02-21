@@ -17,6 +17,8 @@ services:
       - WHISPER_MODEL_ID=deepdml/faster-whisper-large-v3-turbo-ct2
       - WHISPER_COMPUTE_TYPE=int8
       - WHISPER_MODEL_CACHE_DIR=/app/models/whisper
+      - EMOTION_MODEL_CACHE_DIR=/app/models/emotion
+      - TONE_MODEL_CACHE_DIR=/app/models/tone
     depends_on:
       - postgres
       - redis
@@ -26,6 +28,8 @@ services:
       - ./app:/app/app
       - shared_files:/tmp/shared
       - whisper_models:/app/models/whisper
+      - emotion_models:/app/models/emotion
+      - tone_models:/app/models/tone
     networks:
       - transcription-network
 
@@ -67,6 +71,8 @@ services:
       - WHISPER_MODEL_ID=deepdml/faster-whisper-large-v3-turbo-ct2
       - WHISPER_COMPUTE_TYPE=int8
       - WHISPER_MODEL_CACHE_DIR=/app/models/whisper
+      - EMOTION_MODEL_CACHE_DIR=/app/models/emotion
+      - TONE_MODEL_CACHE_DIR=/app/models/tone
     depends_on:
       - postgres
       - redis
@@ -75,6 +81,8 @@ services:
       - ./app:/app/app
       - shared_files:/tmp/shared
       - whisper_models:/app/models/whisper
+      - emotion_models:/app/models/emotion
+      - tone_models:/app/models/tone
     networks:
       - transcription-network
 
@@ -110,6 +118,8 @@ volumes:
   qdrant_data:
   shared_files:
   whisper_models:
+  emotion_models:
+  tone_models:
 
 networks:
   transcription-network:

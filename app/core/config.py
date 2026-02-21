@@ -8,15 +8,24 @@ class Settings(BaseSettings):
     debug: bool = False
     log_level: str = "INFO"
     
-    # Model settings
+    # Device settings
     device: str = "cpu"
-    model_size: str = "tiny"  # Deprecated, use whisper_model_id
     
     # Whisper settings
     whisper_model_id: str = "deepdml/faster-whisper-large-v3-turbo-ct2"
     whisper_compute_type: str = "int8"
     whisper_model_cache_dir: str = "/app/models/whisper"
     whisper_language: str = ""  # Auto-detect if empty
+    
+    # Enhanced NLP Model settings
+    emotion_model_id: str = "Dpngtm/wav2vec2-emotion-recognition"
+    emotion_model_cache_dir: str = "/app/models/emotion"
+    tone_model_id: str = "cross-encoder/nli-deberta-v3-small"
+    tone_model_cache_dir: str = "/app/models/tone"
+    
+    # Sherpa-ONNX Diarization settings
+    sherpa_model_dir: str = os.getenv("SHERPA_MODEL_DIR", "sherpa-onnx")
+    sherpa_clustering_threshold: float = 0.8
     
     # File settings
     max_file_size: int = 100 * 1024 * 1024  # 100MB
@@ -38,15 +47,6 @@ class Settings(BaseSettings):
     
     # Qdrant
     qdrant_url: str = "http://localhost:6333"
-    
-    # Emotion/Tone candidates (matching legacy config)
-    candidate_emotions: List[str] = ["joy", "anger", "sadness", "excitement", "calmness", "interest", "confusion"]
-    candidate_tones: List[str] = ["enthusiastic", "confident", "inquisitive", "hesitant", "professional", "sarcastic", "neutral"]
-    
-    # Sherpa-ONNX Diarization settings
-    sherpa_base_dir: str = "sherpa-onnx"
-    sherpa_model_dir: str = os.getenv("SHERPA_MODEL_DIR", "sherpa-onnx")
-    sherpa_clustering_threshold: float = 0.8
     
     class Config:
         env_file = ".env"
