@@ -33,8 +33,13 @@ class Settings(BaseSettings):
     upload_dir: str = "uploads"
     output_dir: str = "output"
     
-    # Database
-    database_url: str = "postgresql://postgres:password@localhost:5432/transcription_db"
+    # JWT Authentication
+    jwt_secret_key: str = os.getenv("JWT_SECRET_KEY", "")
+    jwt_algorithm: str = "HS256"
+    jwt_expiration_days: int = 7
+    
+    # Database (async with asyncpg)
+    database_url: str = "postgresql+asyncpg://postgres:password@localhost:5432/transcription_db"
     
     # Redis
     redis_url: str = "redis://localhost:6379"

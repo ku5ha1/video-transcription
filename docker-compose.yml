@@ -7,7 +7,10 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql://postgres:password@postgres:5432/transcription_db
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - JWT_ALGORITHM=HS256
+      - JWT_EXPIRATION_DAYS=7
       - REDIS_URL=redis://redis:6379
       - MINIO_ENDPOINT=minio:9000
       - MINIO_ACCESS_KEY=minioadmin
@@ -30,16 +33,19 @@ services:
       - whisper_models:/app/models/whisper
       - emotion_models:/app/models/emotion
       - tone_models:/app/models/tone
+      - ./sherpa-onnx:/app/models/sherpa
     networks:
       - transcription-network
+    env_file:
+      - .env
 
   # PostgreSQL Database
   postgres:
     image: postgres:15-alpine
     environment:
-      - POSTGRES_DB=transcription_db
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
     ports:
       - "5432:5432"
     volumes:
@@ -62,7 +68,10 @@ services:
     build: .
     command: celery -A app.core.celery worker --loglevel=info
     environment:
-      - DATABASE_URL=postgresql://postgres:password@postgres:5432/transcription_db
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - JWT_ALGORITHM=HS256
+      - JWT_EXPIRATION_DAYS=7
       - REDIS_URL=redis://redis:6379
       - MINIO_ENDPOINT=minio:9000
       - MINIO_ACCESS_KEY=minioadmin
@@ -83,8 +92,11 @@ services:
       - whisper_models:/app/models/whisper
       - emotion_models:/app/models/emotion
       - tone_models:/app/models/tone
+      - ./sherpa-onnx:/app/models/sherpa
     networks:
       - transcription-network
+    env_file:
+      - .env
 
   # MinIO Object Storage
   minio:

@@ -54,5 +54,3 @@ echo "Model cache directory: /app/models/whisper"
 
 echo ""
 echo "All models setup complete!"
-
-

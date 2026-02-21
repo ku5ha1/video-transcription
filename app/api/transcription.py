@@ -1,12 +1,19 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from app.models.transcription import TranscriptionResponse
 from app.models.task import TaskResponse, TaskStatusResponse
+from app.models.database import User, Video, VideoStatus, TranscriptSegment
+from app.schemas.video import VideoResponse, VideoDetailResponse, VideoListResponse
 from app.services.minio_service import MinIOService
+from app.core.database import get_db
+from app.core.dependencies import get_current_user
 from app.core.exceptions import FileValidationError, create_http_exception
 from app.core.config import settings
 from app.core.logging import get_logger
 from app.core.celery import celery_app, process_video_task
 from celery.result import AsyncResult
+from typing import List
 import uuid
 
 logger = get_logger("api.transcription")
@@ -34,12 +41,22 @@ def validate_file(file: UploadFile) -> None:
         )
 
 @router.post("/transcribe", response_model=TaskResponse)
-async def transcribe_video(file: UploadFile = File(...)):
+async def transcribe_video(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
     """
     Upload a video file and start asynchronous transcription processing
+    
+    Requires authentication. Video will be associated with the authenticated user.
     """
     logger.info("Transcription request received", extra={
-        "extra_fields": {"filename": file.filename, "content_type": file.content_type}
+        "extra_fields": {
+            "filename": file.filename,
+            "content_type": file.content_type,
+            "user_id": str(current_user.id)
+        }
     })
     
     try:
@@ -50,9 +67,9 @@ async def transcribe_video(file: UploadFile = File(...)):
         # Read file content
         content = await file.read()
         
-        # Generate unique object name
+        # Generate unique object name with user prefix for organization
         file_ext = "." + file.filename.split(".")[-1].lower()
-        object_name = f"{uuid.uuid4()}{file_ext}"
+        object_name = f"users/{current_user.id}/videos/{uuid.uuid4()}{file_ext}"
         
         # Upload to MinIO
         minio_service.upload_file(content, object_name, file.content_type or "video/mp4")
@@ -61,11 +78,36 @@ async def transcribe_video(file: UploadFile = File(...)):
             "extra_fields": {"filename": file.filename, "object_name": object_name}
         })
         
-        # Submit task to Celery with MinIO object name
-        task = process_video_task.delay(object_name, file.filename)
+        # Create video record in database
+        video = Video(
+            user_id=current_user.id,
+            filename=file.filename,
+            minio_object_key=object_name,
+            status=VideoStatus.PENDING
+        )
+        db.add(video)
+        await db.commit()
+        await db.refresh(video)
+        
+        logger.info("Video record created in database", extra={
+            "extra_fields": {"video_id": str(video.id), "user_id": str(current_user.id)}
+        })
+        
+        # Submit task to Celery with user_id and video_id
+        task = process_video_task.delay(
+            object_name,
+            file.filename,
+            str(current_user.id),
+            str(video.id)
+        )
         
         logger.info("Task submitted to Celery", extra={
-            "extra_fields": {"filename": file.filename, "task_id": task.id, "object_name": object_name}
+            "extra_fields": {
+                "filename": file.filename,
+                "task_id": task.id,
+                "video_id": str(video.id),
+                "user_id": str(current_user.id)
+            }
         })
         
         return TaskResponse(
@@ -114,3 +156,116 @@ async def get_transcription_status(task_id: str):
             "extra_fields": {"task_id": task_id, "error": str(e)}
         }, exc_info=True)
         raise HTTPException(status_code=500, detail=f"Status check failed: {str(e)}")
+
+
+@router.get("/videos", response_model=VideoListResponse)
+async def list_videos(
+    page: int = 1,
+    page_size: int = 20,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    List all videos for the authenticated user with pagination
+    """
+    logger.info(f"Video list requested by user: {current_user.email}")
+    
+    # Calculate offset
+    offset = (page - 1) * page_size
+    
+    # Get total count
+    from sqlalchemy import func
+    count_result = await db.execute(
+        select(func.count(Video.id)).where(Video.user_id == current_user.id)
+    )
+    total = count_result.scalar()
+    
+    # Get paginated videos
+    result = await db.execute(
+        select(Video)
+        .where(Video.user_id == current_user.id)
+        .order_by(Video.created_at.desc())
+        .offset(offset)
+        .limit(page_size)
+    )
+    videos = result.scalars().all()
+    
+    return VideoListResponse(
+        videos=videos,
+        total=total,
+        page=page,
+        page_size=page_size
+    )
+
+
+@router.get("/videos/{video_id}", response_model=VideoDetailResponse)
+async def get_video_detail(
+    video_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get video details with transcript segments
+    
+    Only returns video if it belongs to the authenticated user
+    """
+    logger.info(f"Video detail requested: {video_id} by user: {current_user.email}")
+    
+    # Fetch video with segments
+    from sqlalchemy.orm import selectinload
+    result = await db.execute(
+        select(Video)
+        .options(selectinload(Video.transcript_segments))
+        .where(Video.id == video_id, Video.user_id == current_user.id)
+    )
+    video = result.scalar_one_or_none()
+    
+    if not video:
+        logger.warning(f"Video not found or access denied: {video_id}")
+        raise HTTPException(
+            status_code=404,
+            detail="Video not found"
+        )
+    
+    return video
+
+
+@router.delete("/videos/{video_id}")
+async def delete_video(
+    video_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Delete a video and all its transcript segments
+    
+    Only allows deletion if video belongs to the authenticated user
+    """
+    logger.info(f"Video deletion requested: {video_id} by user: {current_user.email}")
+    
+    # Fetch video
+    result = await db.execute(
+        select(Video).where(Video.id == video_id, Video.user_id == current_user.id)
+    )
+    video = result.scalar_one_or_none()
+    
+    if not video:
+        logger.warning(f"Video not found or access denied: {video_id}")
+        raise HTTPException(
+            status_code=404,
+            detail="Video not found"
+        )
+    
+    # Delete from MinIO
+    try:
+        minio_service.delete_file(video.minio_object_key)
+        logger.info(f"Deleted video from MinIO: {video.minio_object_key}")
+    except Exception as e:
+        logger.warning(f"Failed to delete from MinIO: {e}")
+    
+    # Delete from database (cascades to segments)
+    await db.delete(video)
+    await db.commit()
+    
+    logger.info(f"Video deleted successfully: {video_id}")
+    return {"message": "Video deleted successfully", "video_id": video_id}

@@ -21,8 +21,14 @@ class DiarizationService:
         
         # Setup Sherpa-ONNX paths
         base_dir = os.getenv("SHERPA_MODEL_DIR", os.path.join(os.getcwd(), "sherpa-onnx"))
-        seg_model = os.path.join(base_dir, "sherpa-onnx-pyannote-segmentation-3-0/model.onnx")
-        emb_model = os.path.join(base_dir, "3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx")
+        seg_model = os.path.join(base_dir, "sherpa-onnx-pyannote-segmentation-3-0", "model.onnx")
+        emb_model = os.path.join(base_dir, "nemo_en_titanet_small.onnx")
+        
+        # Log paths for debugging
+        logger.info(f"Sherpa segmentation model path: {seg_model}")
+        logger.info(f"Sherpa embedding model path: {emb_model}")
+        logger.info(f"Segmentation model exists: {os.path.exists(seg_model)}")
+        logger.info(f"Embedding model exists: {os.path.exists(emb_model)}")
         
         # Initialize Sherpa-ONNX
         try:
