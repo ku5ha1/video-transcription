@@ -16,6 +16,7 @@ class MinIOService:
             secret_key=settings.minio_secret_key,
             secure=settings.minio_secure
         )
+        self.external_endpoint = settings.minio_external_endpoint
         self.bucket_name = "video-uploads"
         self._ensure_bucket_exists()
     
@@ -95,6 +96,9 @@ class MinIOService:
                 object_name,
                 expires=timedelta(seconds=expires_in_seconds)
             )
+            
+            # Replace internal Docker hostname with external endpoint
+            url = url.replace(settings.minio_endpoint, self.external_endpoint)
             
             logger.info(f"Generated presigned URL for: {object_name}")
             return url

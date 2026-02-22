@@ -581,3 +581,45 @@ async def get_chat_history(
             ''')
     
     return "".join(html_parts)
+
+
+@router.delete("/api/web/videos/{video_id}")
+async def web_delete_video(
+    request: Request,
+    video_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """Web delete video endpoint using cookie authentication"""
+    from app.services.minio_service import MinIOService
+    
+    try:
+        current_user = await get_current_user_from_cookie(request, db)
+    except HTTPException:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    logger.info(f"Video deletion requested: {video_id} by user: {current_user.email}")
+    
+    # Fetch video
+    result = await db.execute(
+        select(Video).where(Video.id == video_id, Video.user_id == current_user.id)
+    )
+    video = result.scalar_one_or_none()
+    
+    if not video:
+        logger.warning(f"Video not found or access denied: {video_id}")
+        raise HTTPException(status_code=404, detail="Video not found")
+    
+    # Delete from MinIO
+    try:
+        minio_service = MinIOService()
+        minio_service.delete_file(video.minio_object_key)
+        logger.info(f"Deleted video from MinIO: {video.minio_object_key}")
+    except Exception as e:
+        logger.warning(f"Failed to delete from MinIO: {e}")
+    
+    # Delete from database (cascades to segments)
+    await db.delete(video)
+    await db.commit()
+    
+    logger.info(f"Video deleted successfully: {video_id}")
+    return {"message": "Video deleted successfully", "video_id": video_id}

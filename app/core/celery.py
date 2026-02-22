@@ -166,12 +166,9 @@ def process_video_task(self, object_name: str, filename: str, user_id: str, vide
                 await update_video_status(VideoStatus.FAILED)
                 logger.error(f"Video processing failed: {result.message}")
             
-            # Clean up MinIO object
-            try:
-                minio_service.delete_file(object_name)
-                logger.info(f"Deleted video from MinIO: {object_name}")
-            except Exception as cleanup_error:
-                logger.warning(f"Failed to delete MinIO object {object_name}: {cleanup_error}")
+            # Note: Keep video in MinIO for playback
+            # Video will only be deleted when user explicitly deletes it via the API
+            logger.info(f"Video processing completed, keeping video in MinIO: {object_name}")
             
             # Clean up local temp file
             if temp_video_path and os.path.exists(temp_video_path):
@@ -196,13 +193,9 @@ def process_video_task(self, object_name: str, filename: str, user_id: str, vide
             except:
                 pass
             
-            # Clean up on failure
-            try:
-                minio_service = MinIOService()
-                minio_service.delete_file(object_name)
-                logger.info(f"Deleted video from MinIO after error: {object_name}")
-            except Exception as cleanup_error:
-                logger.warning(f"Failed to delete MinIO object after error {object_name}: {cleanup_error}")
+            # Note: Keep video in MinIO even on failure for debugging
+            # Video will be deleted when user explicitly deletes it via the API
+            logger.info(f"Keeping video in MinIO after error: {object_name}")
             
             if temp_video_path and os.path.exists(temp_video_path):
                 os.unlink(temp_video_path)
