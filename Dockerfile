@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.4
 # Python 3.10
-FROM python:3.10-slim
+FROM python:3.10-slim AS app
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -22,10 +22,8 @@ COPY requirements.txt .
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install -r requirements.txt
 
-# Copy model download script and execute with cache mount
+# Copy model download script (models downloaded at runtime, not build time)
 COPY scripts/download_models.py /app/scripts/download_models.py
-RUN --mount=type=cache,target=/root/.cache/huggingface \
-    python /app/scripts/download_models.py
 
 # Copy application code
 COPY app/ ./app/
@@ -48,3 +46,7 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
 
 # Run entrypoint script (migrations + app)
 CMD ["/app/scripts/entrypoint.sh"]
+
+# Celery stage - inherits from app stage
+FROM app AS celery
+CMD ["celery", "-A", "app.core.celery", "worker", "--loglevel=info"]

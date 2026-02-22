@@ -4,7 +4,7 @@ from sqlalchemy import select
 from app.models.transcription import TranscriptionResponse
 from app.models.task import TaskResponse, TaskStatusResponse
 from app.models.database import User, Video, VideoStatus, TranscriptSegment
-from app.schemas.video import VideoResponse, VideoDetailResponse, VideoListResponse
+from app.schemas.video import VideoResponse, VideoDetailResponse, VideoListResponse, TranscriptSegmentResponse
 from app.services.minio_service import MinIOService
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
@@ -227,7 +227,30 @@ async def get_video_detail(
             detail="Video not found"
         )
     
-    return video
+    # Manually convert to VideoDetailResponse
+    segments = [
+        TranscriptSegmentResponse(
+            id=s.id,
+            video_id=s.video_id,
+            start_time=s.start_time,
+            end_time=s.end_time,
+            speaker_label=s.speaker_label,
+            text=s.text,
+            audio_emotion=s.audio_emotion,
+            text_tone=s.text_tone
+        )
+        for s in video.transcript_segments
+    ]
+    
+    return VideoDetailResponse(
+        id=video.id,
+        user_id=video.user_id,
+        filename=video.filename,
+        status=video.status,
+        duration=video.duration,
+        created_at=video.created_at,
+        segments=segments
+    )
 
 
 @router.delete("/videos/{video_id}")

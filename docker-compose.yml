@@ -3,7 +3,10 @@ version: '3.8'
 services:
   # FastAPI Application
   app:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: app
     ports:
       - "8000:8000"
     environment:
@@ -22,6 +25,7 @@ services:
       - WHISPER_MODEL_CACHE_DIR=/app/models/whisper
       - EMOTION_MODEL_CACHE_DIR=/app/models/emotion
       - TONE_MODEL_CACHE_DIR=/app/models/tone
+      - HUGGING_FACE_TOKEN=${HUGGING_FACE_TOKEN}
     depends_on:
       - postgres
       - redis
@@ -65,7 +69,10 @@ services:
 
   # Celery Worker
   celery:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: celery
     command: celery -A app.core.celery worker --loglevel=info
     environment:
       - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
@@ -82,6 +89,7 @@ services:
       - WHISPER_MODEL_CACHE_DIR=/app/models/whisper
       - EMOTION_MODEL_CACHE_DIR=/app/models/emotion
       - TONE_MODEL_CACHE_DIR=/app/models/tone
+      - HUGGING_FACE_TOKEN=${HUGGING_FACE_TOKEN}
     depends_on:
       - postgres
       - redis

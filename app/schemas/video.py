@@ -1,6 +1,3 @@
-"""
-Pydantic schemas for video and transcript endpoints
-"""
 from pydantic import BaseModel
 from datetime import datetime
 from uuid import UUID
@@ -55,7 +52,19 @@ class VideoDetailResponse(VideoResponse):
                 'status': obj.status,
                 'duration': obj.duration,
                 'created_at': obj.created_at,
-                'segments': obj.transcript_segments
+                'segments': [
+                    TranscriptSegmentResponse(
+                        id=s.id,
+                        video_id=s.video_id,
+                        start_time=s.start_time,
+                        end_time=s.end_time,
+                        speaker_label=s.speaker_label,
+                        text=s.text,
+                        audio_emotion=s.audio_emotion,
+                        text_tone=s.text_tone
+                    )
+                    for s in obj.transcript_segments
+                ]
             }
             return super().model_validate(data)
         return super().model_validate(obj)

@@ -1,3 +1,4 @@
+import os
 import torch
 import torchaudio
 import numpy as np
@@ -19,13 +20,16 @@ class MetadataService:
         
         # Audio Emotion Model (Wav2Vec2)
         logger.info("Loading Audio Emotion Model: Dpngtm/wav2vec2-emotion-recognition")
+        huggingface_token = os.getenv("HUGGING_FACE_TOKEN")
         self.audio_model = AutoModelForAudioClassification.from_pretrained(
             "Dpngtm/wav2vec2-emotion-recognition",
-            cache_dir=settings.emotion_model_cache_dir
+            cache_dir=settings.emotion_model_cache_dir,
+            token=huggingface_token if huggingface_token else None
         )
         self.audio_feature_extractor = AutoFeatureExtractor.from_pretrained(
             "Dpngtm/wav2vec2-emotion-recognition",
-            cache_dir=settings.emotion_model_cache_dir
+            cache_dir=settings.emotion_model_cache_dir,
+            token=huggingface_token if huggingface_token else None
         )
         self.audio_model.eval()
         logger.info("Audio Emotion Model loaded successfully")
