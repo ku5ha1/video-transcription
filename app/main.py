@@ -1,5 +1,6 @@
 from fastapi import FastAPI
-from app.api import transcription, health, auth, chat
+from fastapi.staticfiles import StaticFiles
+from app.api import transcription, health, auth, chat, web
 from app.core.config import settings
 from app.core.logging import setup_logging, get_logger
 from app.core.database import init_db, close_db
@@ -19,6 +20,7 @@ app = FastAPI(
 vector_service = VectorStoreService()
 
 # Include routers
+app.include_router(web.router, tags=["web"])  # Web UI routes (no prefix)
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["authentication"])
 app.include_router(transcription.router, prefix="/api/v1", tags=["transcription"])
 app.include_router(chat.router, prefix="/api/v1", tags=["chat"])
@@ -40,12 +42,3 @@ async def startup_event():
 async def shutdown_event():
     logger.info("Shutting down Video Transcription API")
     await close_db()
-
-@app.get("/")
-async def root():
-    logger.info("Root endpoint accessed")
-    return {
-        "message": "Video Transcription API",
-        "version": "1.0.0",
-        "docs": "/docs"
-    }
