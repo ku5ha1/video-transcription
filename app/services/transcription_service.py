@@ -82,7 +82,9 @@ class TranscriptionService:
                 speaker=speaker_label,
                 text=text,
                 emotion=metadata_dict['Emotion'],
-                tone=metadata_dict['Tone']
+                tone=metadata_dict['Tone'],
+                start_time=segment.start,
+                end_time=segment.end
             )
         except Exception as e:
             logger.error("Failed to annotate segment", extra={

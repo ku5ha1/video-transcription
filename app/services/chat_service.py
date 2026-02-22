@@ -102,6 +102,7 @@ Relevant transcript snippets:
             segments = self.vector_service.search_segments(
                 query=query,
                 user_id=user_id,
+                video_id=video_id,
                 limit=limit
             )
             

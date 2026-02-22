@@ -58,7 +58,7 @@ async def chat_with_video(
     result = chat_service.chat(
         query=request.query,
         user_id=str(current_user.id),
-        video_id=video_id if request.video_id else None,
+        video_id=video_id,
         history=request.history,
         limit=5
     )

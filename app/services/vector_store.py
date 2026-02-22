@@ -130,29 +130,40 @@ class VectorStoreService:
     def search_segments(
         self, 
         query: str, 
-        user_id: str, 
+        user_id: str,
+        video_id: Optional[str] = None,
         limit: int = 5
     ) -> List[dict]:
-        """Search segments with user_id filter for multi-tenancy"""
+        """Search segments with user_id and optional video_id filter for multi-tenancy"""
         try:
             # Generate query embedding
             query_embedding = self._get_embeddings([query])[0]
             
-            # Create filter for user_id
-            user_filter = Filter(
-                must=[
+            # Create filter conditions
+            filter_conditions = [
+                FieldCondition(
+                    key="user_id",
+                    match=MatchValue(value=user_id)
+                )
+            ]
+            
+            # Add video_id filter if provided
+            if video_id:
+                filter_conditions.append(
                     FieldCondition(
-                        key="user_id",
-                        match=MatchValue(value=user_id)
+                        key="video_id",
+                        match=MatchValue(value=video_id)
                     )
-                ]
-            )
+                )
+            
+            # Create filter
+            search_filter = Filter(must=filter_conditions)
             
             # Search with filter using query_points for compatibility
             search_results = self.client.query_points(
                 collection_name=self.collection_name,
                 query=query_embedding,
-                query_filter=user_filter,
+                query_filter=search_filter,
                 limit=limit
             )
             
@@ -165,7 +176,7 @@ class VectorStoreService:
                     "payload": hit.payload
                 })
             
-            logger.info(f"Found {len(results)} segments for user {user_id}")
+            logger.info(f"Found {len(results)} segments for user {user_id}" + (f" and video {video_id}" if video_id else ""))
             return results
             
         except Exception as e:

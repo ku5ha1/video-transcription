@@ -7,6 +7,8 @@ class TranscriptSegment(BaseModel):
     text: str
     emotion: str
     tone: str
+    start_time: float
+    end_time: float
 
 class TranscriptionResponse(BaseModel):
     success: bool

@@ -145,16 +145,9 @@ def process_video_task(self, object_name: str, filename: str, user_id: str, vide
                 # Prepare segments data for database
                 segments_data = []
                 for segment in result.segments:
-                    # Parse timestamp to get start_time (format: "[MM:SS]" or "MM:SS")
-                    timestamp_str = segment.timestamp.strip('[]')  # Remove brackets if present
-                    time_parts = timestamp_str.split(':')
-                    start_time = float(time_parts[0]) * 60 + float(time_parts[1])
-                    # Estimate end_time (we'll improve this later with actual segment duration)
-                    end_time = start_time + 5.0
-                    
                     segments_data.append({
-                        'start_time': start_time,
-                        'end_time': end_time,
+                        'start_time': segment.start_time,
+                        'end_time': segment.end_time,
                         'speaker': segment.speaker,
                         'text': segment.text,
                         'emotion': segment.emotion,
