@@ -292,3 +292,34 @@ async def delete_video(
     
     logger.info(f"Video deleted successfully: {video_id}")
     return {"message": "Video deleted successfully", "video_id": video_id}
+
+
+@router.get("/videos/{video_id}/stream")
+async def stream_video(
+    video_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Stream video file from MinIO
+    
+    Returns a presigned URL that redirects to the MinIO object
+    """
+    from fastapi.responses import RedirectResponse
+    
+    # Fetch video
+    result = await db.execute(
+        select(Video).where(Video.id == video_id, Video.user_id == current_user.id)
+    )
+    video = result.scalar_one_or_none()
+    
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+    
+    # Generate presigned URL (valid for 1 hour)
+    try:
+        presigned_url = minio_service.get_file_url(video.minio_object_key, expires_in_seconds=3600)
+        return RedirectResponse(url=presigned_url)
+    except Exception as e:
+        logger.error(f"Failed to generate presigned URL: {e}")
+        raise HTTPException(status_code=500, detail="Failed to stream video")

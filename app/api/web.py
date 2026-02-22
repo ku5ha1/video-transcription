@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request, Depends, HTTPException, Form, Response
+from fastapi import APIRouter, Request, Depends, HTTPException, Form, Response, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -180,6 +180,146 @@ async def logout():
     return response
 
 
+@router.get("/upload", response_class=HTMLResponse)
+async def upload_page(
+    request: Request,
+    db: AsyncSession = Depends(get_db)
+):
+    """Upload page"""
+    try:
+        current_user = await get_current_user_from_cookie(request, db)
+    except HTTPException:
+        return RedirectResponse(url="/login", status_code=303)
+    
+    return templates.TemplateResponse(
+        "upload.html",
+        {
+            "request": request,
+            "user": current_user
+        }
+    )
+
+
+@router.get("/video/{video_id}", response_class=HTMLResponse)
+async def video_detail(
+    request: Request,
+    video_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """Video detail page with interactive transcript"""
+    try:
+        current_user = await get_current_user_from_cookie(request, db)
+    except HTTPException:
+        return RedirectResponse(url="/login", status_code=303)
+    
+    # Fetch video with segments
+    from sqlalchemy.orm import selectinload
+    result = await db.execute(
+        select(Video)
+        .options(selectinload(Video.transcript_segments))
+        .where(Video.id == video_id, Video.user_id == current_user.id)
+    )
+    video = result.scalar_one_or_none()
+    
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+    
+    # Sort segments by start_time
+    segments = sorted(video.transcript_segments, key=lambda s: s.start_time)
+    
+    return templates.TemplateResponse(
+        "video_detail.html",
+        {
+            "request": request,
+            "user": current_user,
+            "video": video,
+            "segments": segments
+        }
+    )
+
+
+@router.post("/api/web/chat/{video_id}")
+async def web_chat(
+    request: Request,
+    video_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """Web chat endpoint using cookie authentication with history persistence"""
+    from app.models.database import ChatMessage, ChatRole
+    
+    try:
+        current_user = await get_current_user_from_cookie(request, db)
+    except HTTPException:
+        return {"error": "Not authenticated"}
+    
+    try:
+        # Get request body
+        body = await request.json()
+        query = body.get("query", "")
+        
+        if not query:
+            return {"error": "Query is required"}
+        
+        # Fetch last 20 messages for context
+        result = await db.execute(
+            select(ChatMessage)
+            .where(
+                ChatMessage.video_id == video_id,
+                ChatMessage.user_id == current_user.id
+            )
+            .order_by(ChatMessage.created_at.desc())
+            .limit(20)
+        )
+        messages = result.scalars().all()
+        
+        # Format history for Gemini (reverse to chronological order)
+        history = []
+        for msg in reversed(messages):
+            history.append({
+                "role": msg.role,
+                "parts": [{"text": msg.content}]
+            })
+        
+        # Save user message with lowercase role
+        user_message = ChatMessage(
+            video_id=video_id,
+            user_id=current_user.id,
+            role="user",
+            content=query
+        )
+        db.add(user_message)
+        await db.commit()
+        
+        # Call chat service
+        from app.services.chat_service import ChatService
+        chat_service = ChatService()
+        
+        result = chat_service.chat(
+            query=query,
+            user_id=str(current_user.id),
+            video_id=video_id,
+            history=history,
+            limit=5
+        )
+        
+        # Save assistant response with lowercase role
+        assistant_message = ChatMessage(
+            video_id=video_id,
+            user_id=current_user.id,
+            role="assistant",
+            content=result.get("answer", "")
+        )
+        db.add(assistant_message)
+        await db.commit()
+        
+        return result
+        
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Chat error: {e}", exc_info=True)
+        return {"error": "Failed to process chat request"}
+
+
 @router.get("/", response_class=HTMLResponse)
 async def index(
     request: Request,
@@ -289,3 +429,155 @@ async def get_video_status_badge(
         '''
     
     return '<span class="text-gray-400">Unknown status</span>'
+
+
+
+@router.post("/api/web/upload")
+async def web_upload(
+    request: Request,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db)
+):
+    """Web upload endpoint using cookie authentication"""
+    from app.services.minio_service import MinIOService
+    from app.models.database import VideoStatus
+    from app.core.celery import process_video_task
+    from app.core.config import settings
+    import uuid
+    
+    try:
+        current_user = await get_current_user_from_cookie(request, db)
+    except HTTPException:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    logger.info(f"Upload request from {current_user.email}: {file.filename}")
+    
+    # Validate file
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="No filename provided")
+    
+    file_ext = "." + file.filename.split(".")[-1].lower()
+    if file_ext not in settings.allowed_video_extensions:
+        raise HTTPException(status_code=400, detail=f"Invalid file format: {file_ext}")
+    
+    # Read and upload to MinIO
+    content = await file.read()
+    minio_service = MinIOService()
+    object_name = f"users/{current_user.id}/videos/{uuid.uuid4()}{file_ext}"
+    minio_service.upload_file(content, object_name, file.content_type or "video/mp4")
+    
+    # Create video record
+    video = Video(
+        user_id=current_user.id,
+        filename=file.filename,
+        minio_object_key=object_name,
+        status=VideoStatus.PENDING
+    )
+    db.add(video)
+    await db.commit()
+    await db.refresh(video)
+    
+    # Submit Celery task
+    task = process_video_task.delay(
+        object_name,
+        file.filename,
+        str(current_user.id),
+        str(video.id)
+    )
+    
+    logger.info(f"Task submitted: {task.id} for video: {video.id}")
+    
+    return {"message": "Upload successful", "task_id": task.id, "video_id": str(video.id)}
+
+
+@router.get("/api/web/videos/{video_id}/stream")
+async def web_stream_video(
+    request: Request,
+    video_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """Web video streaming endpoint using cookie authentication"""
+    from fastapi.responses import RedirectResponse
+    from app.services.minio_service import MinIOService
+    
+    try:
+        current_user = await get_current_user_from_cookie(request, db)
+    except HTTPException:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    try:
+        # Fetch video
+        result = await db.execute(
+            select(Video).where(Video.id == video_id, Video.user_id == current_user.id)
+        )
+        video = result.scalar_one_or_none()
+        
+        if not video:
+            raise HTTPException(status_code=404, detail="Video not found")
+        
+        # Generate presigned URL using MinIO service
+        minio_service = MinIOService()
+        presigned_url = minio_service.get_file_url(video.minio_object_key, expires_in_seconds=3600)
+        return RedirectResponse(url=presigned_url)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Failed to stream video: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to stream video")
+        return RedirectResponse(url=presigned_url)
+    except Exception as e:
+        logger.error(f"Failed to generate presigned URL: {e}")
+        raise HTTPException(status_code=500, detail="Failed to stream video")
+
+
+
+@router.get("/api/web/chat/{video_id}/history", response_class=HTMLResponse)
+async def get_chat_history(
+    request: Request,
+    video_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """Get chat history for a video as HTML"""
+    from app.models.database import ChatMessage
+    import html
+    
+    try:
+        current_user = await get_current_user_from_cookie(request, db)
+    except HTTPException:
+        return ""
+    
+    # Fetch messages
+    result = await db.execute(
+        select(ChatMessage)
+        .where(
+            ChatMessage.video_id == video_id,
+            ChatMessage.user_id == current_user.id
+        )
+        .order_by(ChatMessage.created_at.asc())
+    )
+    messages = result.scalars().all()
+    
+    # Build HTML with proper escaping
+    html_parts = []
+    for msg in messages:
+        escaped_content = html.escape(msg.content)
+        if msg.role == "user":
+            html_parts.append(f'''
+                <div class="flex justify-end">
+                    <div class="bg-primary/20 border border-primary/30 rounded-lg px-4 py-2 max-w-xs">
+                        <p class="text-sm text-white">{escaped_content}</p>
+                    </div>
+                </div>
+            ''')
+        else:
+            html_parts.append(f'''
+                <div class="flex justify-start">
+                    <div class="bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 max-w-md">
+                        <p class="text-sm text-gray-100">{escaped_content}</p>
+                    </div>
+                </div>
+            ''')
+    
+    return "".join(html_parts)

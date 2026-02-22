@@ -16,6 +16,12 @@ class VideoStatus(str, enum.Enum):
     FAILED = "failed"
 
 
+class ChatRole(str, enum.Enum):
+    """Chat message role enum"""
+    USER = "user"
+    ASSISTANT = "assistant"
+
+
 class User(Base):
     """User model for authentication and multi-tenancy"""
     __tablename__ = "users"
@@ -30,6 +36,7 @@ class User(Base):
     # Relationships
     videos = relationship("Video", back_populates="user", cascade="all, delete-orphan")
     transcript_segments = relationship("TranscriptSegment", back_populates="user", cascade="all, delete-orphan")
+    chat_messages = relationship("ChatMessage", back_populates="user", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<User(id={self.id}, email={self.email})>"
@@ -51,6 +58,7 @@ class Video(Base):
     # Relationships
     user = relationship("User", back_populates="videos")
     transcript_segments = relationship("TranscriptSegment", back_populates="video", cascade="all, delete-orphan")
+    chat_messages = relationship("ChatMessage", back_populates="video", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Video(id={self.id}, filename={self.filename}, status={self.status})>"
@@ -77,3 +85,23 @@ class TranscriptSegment(Base):
 
     def __repr__(self):
         return f"<TranscriptSegment(id={self.id}, video_id={self.video_id}, speaker={self.speaker_label})>"
+
+
+
+class ChatMessage(Base):
+    """Chat message model for storing conversation history"""
+    __tablename__ = "chat_messages"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    video_id = Column(UUID(as_uuid=True), ForeignKey("videos.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    role = Column(String(50), nullable=False)
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    
+    # Relationships
+    video = relationship("Video", back_populates="chat_messages")
+    user = relationship("User", back_populates="chat_messages")
+
+    def __repr__(self):
+        return f"<ChatMessage(id={self.id}, video_id={self.video_id}, role={self.role})>"
