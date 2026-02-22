@@ -26,6 +26,8 @@ services:
       - EMOTION_MODEL_CACHE_DIR=/app/models/emotion
       - TONE_MODEL_CACHE_DIR=/app/models/tone
       - HUGGING_FACE_TOKEN=${HUGGING_FACE_TOKEN}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - QDRANT_MODEL_CACHE=/app/models/qdrant
     depends_on:
       - postgres
       - redis
@@ -90,6 +92,8 @@ services:
       - EMOTION_MODEL_CACHE_DIR=/app/models/emotion
       - TONE_MODEL_CACHE_DIR=/app/models/tone
       - HUGGING_FACE_TOKEN=${HUGGING_FACE_TOKEN}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - QDRANT_MODEL_CACHE=/app/models/qdrant
     depends_on:
       - postgres
       - redis

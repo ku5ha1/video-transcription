@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from app.services.transcription_service import TranscriptionService
 from app.services.minio_service import MinIOService
+from app.services.vector_store import VectorStoreService
 from app.models.database import Video, TranscriptSegment, VideoStatus
 from app.core.logging import get_logger
 from app.core.config import settings
@@ -85,6 +86,23 @@ def process_video_task(self, object_name: str, filename: str, user_id: str, vide
                     db.add(segment)
                 await db.commit()
                 logger.info(f"Saved {len(segments_data)} segments to database for video: {video_id}")
+                
+                # Upsert segments to Qdrant vector store
+                try:
+                    # Re-fetch segments with IDs
+                    result = await db.execute(
+                        select(TranscriptSegment)
+                        .where(TranscriptSegment.video_id == video_id)
+                        .order_by(TranscriptSegment.start_time)
+                    )
+                    segments = result.scalars().all()
+                    
+                    vector_service = VectorStoreService()
+                    vector_service.upsert_segments(segments)
+                    logger.info(f"Upserted {len(segments)} segments to Qdrant for video: {video_id}")
+                except Exception as vector_error:
+                    logger.warning(f"Failed to upsert to Qdrant: {vector_error}")
+                    
             except Exception as e:
                 logger.error(f"Failed to save segments: {e}", exc_info=True)
                 await db.rollback()

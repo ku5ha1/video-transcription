@@ -1,8 +1,9 @@
 from fastapi import FastAPI
-from app.api import transcription, health, auth
+from app.api import transcription, health, auth, chat
 from app.core.config import settings
 from app.core.logging import setup_logging, get_logger
 from app.core.database import init_db, close_db
+from app.services.vector_store import VectorStoreService
 
 # Setup logging
 setup_logging(settings.log_level)
@@ -14,9 +15,13 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# Initialize vector store service
+vector_service = VectorStoreService()
+
 # Include routers
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["authentication"])
 app.include_router(transcription.router, prefix="/api/v1", tags=["transcription"])
+app.include_router(chat.router, prefix="/api/v1", tags=["chat"])
 app.include_router(health.router, tags=["health"])
 
 @app.on_event("startup")
@@ -26,6 +31,10 @@ async def startup_event():
     if settings.debug:
         await init_db()
         logger.info("Database initialized")
+    
+    # Initialize Qdrant collection
+    vector_service.init_collection()
+    logger.info("Qdrant collection initialized")
 
 @app.on_event("shutdown")
 async def shutdown_event():

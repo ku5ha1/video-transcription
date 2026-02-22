@@ -52,6 +52,11 @@ class Settings(BaseSettings):
     
     # Qdrant
     qdrant_url: str = "http://localhost:6333"
+    qdrant_model_cache: str = "/app/models/qdrant"
+    
+    # Gemini
+    gemini_api_key: str = os.getenv("GEMINI_API_KEY", "")
+    gemini_model: str = "gemini-2.5-flash"
     
     class Config:
         env_file = ".env"
