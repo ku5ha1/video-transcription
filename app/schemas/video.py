@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from datetime import datetime
 from uuid import UUID
 from typing import List, Optional
@@ -8,6 +8,8 @@ from app.models.database import VideoStatus
 class VideoResponse(BaseModel):
     """Schema for video information response"""
 
+    model_config = ConfigDict(from_attributes=True)
+
     id: UUID
     user_id: UUID
     filename: str
@@ -15,12 +17,11 @@ class VideoResponse(BaseModel):
     duration: Optional[float]
     created_at: datetime
 
-    class Config:
-        from_attributes = True
-
 
 class TranscriptSegmentResponse(BaseModel):
     """Schema for transcript segment response"""
+
+    model_config = ConfigDict(from_attributes=True)
 
     id: int
     video_id: UUID
@@ -31,17 +32,13 @@ class TranscriptSegmentResponse(BaseModel):
     audio_emotion: Optional[str]
     text_tone: Optional[str]
 
-    class Config:
-        from_attributes = True
-
 
 class VideoDetailResponse(VideoResponse):
     """Schema for video with transcript segments"""
 
-    segments: List[TranscriptSegmentResponse] = []
+    model_config = ConfigDict(from_attributes=True)
 
-    class Config:
-        from_attributes = True
+    segments: List[TranscriptSegmentResponse] = []
 
     @classmethod
     def model_validate(cls, obj):
