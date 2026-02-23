@@ -10,6 +10,7 @@ from app.services.diarization_service import DiarizationService
 from app.services.metadata_service import MetadataService
 from app.utils.time_utils import format_timestamp
 from app.utils.file_utils import cleanup_file
+from app.utils.semantic_aggregator import reconstruct_semantic_segments
 from app.core.exceptions import (
     VideoProcessingError, AudioExtractionError, 
     TranscriptionModelError, SpeakerDiarizationError, 
@@ -57,17 +58,21 @@ class TranscriptionService:
             logger.error(f"Failed to extract audio chunk: {e}")
             return None, None
     
-    def _annotate_segment(self, segment, speaker_label: str, audio_path: str) -> TranscriptSegment:
-        """Annotate a single segment with metadata"""
+    def _annotate_segment(self, semantic_segment: dict, audio_path: str) -> TranscriptSegment:
+        """Annotate a semantic segment with metadata"""
         try:
-            text = segment.text.strip()
-            timestamp = format_timestamp(segment.start)
+            text = semantic_segment['text']
+            start_time = semantic_segment['start_time']
+            end_time = semantic_segment['end_time']
+            speaker = semantic_segment['speaker']
+            
+            timestamp = format_timestamp(start_time)
             
             # Extract audio chunk for this segment
             audio_chunk, sample_rate = self._extract_audio_chunk(
                 audio_path, 
-                segment.start, 
-                segment.end
+                start_time, 
+                end_time
             )
             
             # Get metadata with both text and audio
@@ -77,18 +82,31 @@ class TranscriptionService:
                 sample_rate=sample_rate
             )
             
+            # Format speaker label
+            if speaker:
+                # Handle different speaker ID formats
+                if speaker.startswith("SPEAKER_"):
+                    speaker_num = speaker.replace("SPEAKER_", "")
+                    speaker_label = f"Speaker {speaker_num}"
+                elif speaker.startswith("Speaker "):
+                    speaker_label = speaker
+                else:
+                    speaker_label = f"Speaker {speaker}"
+            else:
+                speaker_label = "Speaker Unknown"
+            
             return TranscriptSegment(
                 timestamp=timestamp,
                 speaker=speaker_label,
                 text=text,
                 emotion=metadata_dict['Emotion'],
                 tone=metadata_dict['Tone'],
-                start_time=segment.start,
-                end_time=segment.end
+                start_time=start_time,
+                end_time=end_time
             )
         except Exception as e:
             logger.error("Failed to annotate segment", extra={
-                "extra_fields": {"text": text[:50], "speaker": speaker_label}
+                "extra_fields": {"text": text[:50], "speaker": speaker}
             }, exc_info=True)
             raise MetadataExtractionError(f"Failed to extract metadata: {str(e)}")
     
@@ -113,47 +131,33 @@ class TranscriptionService:
             logger.info("Extracting audio from video")
             temp_audio_path = await self.video_service.extract_audio_from_video(temp_video_path)
             
-            # Transcribe audio
-            logger.info("Starting transcription")
+            # Transcribe audio with word-level timestamps
+            logger.info("Starting transcription with word-level timestamps")
             whisper_segments = list(self.whisper_service.transcribe_audio(temp_audio_path))
             logger.info("Transcription completed", extra={
-                "extra_fields": {"segments_count": len(whisper_segments)}
+                "extra_fields": {"raw_segments_count": len(whisper_segments)}
             })
             
             # Get speaker labels
             logger.info("Starting speaker diarization")
             speaker_labels = self.diarization_service.get_speaker_labels(temp_audio_path)
             
-            # Align speakers with segments
-            if speaker_labels:
-                alignment_map = self.diarization_service.align_speakers(whisper_segments, speaker_labels)
-                logger.info("Speaker alignment completed", extra={
-                    "extra_fields": {"aligned_segments": len(alignment_map)}
-                })
-            else:
-                alignment_map = {}
-                logger.warning("No speaker labels found, using fallback speaker assignment")
+            # Reconstruct semantic segments from word-level timestamps
+            logger.info("Reconstructing semantic segments")
+            semantic_segments = reconstruct_semantic_segments(
+                whisper_segments=whisper_segments,
+                speaker_labels=speaker_labels if speaker_labels else []
+            )
+            logger.info("Semantic reconstruction completed", extra={
+                "extra_fields": {"semantic_segments_count": len(semantic_segments)}
+            })
             
-            # Process segments with speaker assignment and metadata
+            # Process segments with metadata
             logger.info("Processing segments with metadata")
             segments = []
-            fallback_speaker = 1
-            speaker_index_map = {}
-            next_speaker_index = 1
             
-            for segment in whisper_segments:
-                raw_speaker_id = alignment_map.get(segment.start)
-                
-                if raw_speaker_id is None:
-                    speaker_label = f"Speaker {fallback_speaker}"
-                    fallback_speaker = 2 if fallback_speaker == 1 else 1
-                else:
-                    if raw_speaker_id not in speaker_index_map:
-                        speaker_index_map[raw_speaker_id] = next_speaker_index
-                        next_speaker_index += 1
-                    speaker_label = f"Speaker {speaker_index_map[raw_speaker_id]}"
-                
-                annotated_segment = self._annotate_segment(segment, speaker_label, temp_audio_path)
+            for semantic_seg in semantic_segments:
+                annotated_segment = self._annotate_segment(semantic_seg, temp_audio_path)
                 segments.append(annotated_segment)
             
             processing_time = time.time() - start_time
@@ -217,47 +221,33 @@ class TranscriptionService:
             logger.info("Extracting audio from video")
             temp_audio_path = self._extract_audio_from_video_path(video_path)
             
-            # Transcribe audio
-            logger.info("Starting transcription")
+            # Transcribe audio with word-level timestamps
+            logger.info("Starting transcription with word-level timestamps")
             whisper_segments = list(self.whisper_service.transcribe_audio(temp_audio_path))
             logger.info("Transcription completed", extra={
-                "extra_fields": {"segments_count": len(whisper_segments)}
+                "extra_fields": {"raw_segments_count": len(whisper_segments)}
             })
             
             # Get speaker labels
             logger.info("Starting speaker diarization")
             speaker_labels = self.diarization_service.get_speaker_labels(temp_audio_path)
             
-            # Align speakers with segments
-            if speaker_labels:
-                alignment_map = self.diarization_service.align_speakers(whisper_segments, speaker_labels)
-                logger.info("Speaker alignment completed", extra={
-                    "extra_fields": {"aligned_segments": len(alignment_map)}
-                })
-            else:
-                alignment_map = {}
-                logger.warning("No speaker labels found, using fallback speaker assignment")
+            # Reconstruct semantic segments from word-level timestamps
+            logger.info("Reconstructing semantic segments")
+            semantic_segments = reconstruct_semantic_segments(
+                whisper_segments=whisper_segments,
+                speaker_labels=speaker_labels if speaker_labels else []
+            )
+            logger.info("Semantic reconstruction completed", extra={
+                "extra_fields": {"semantic_segments_count": len(semantic_segments)}
+            })
             
-            # Process segments with speaker assignment and metadata
+            # Process segments with metadata
             logger.info("Processing segments with metadata")
             segments = []
-            fallback_speaker = 1
-            speaker_index_map = {}
-            next_speaker_index = 1
             
-            for segment in whisper_segments:
-                raw_speaker_id = alignment_map.get(segment.start)
-                
-                if raw_speaker_id is None:
-                    speaker_label = f"Speaker {fallback_speaker}"
-                    fallback_speaker = 2 if fallback_speaker == 1 else 1
-                else:
-                    if raw_speaker_id not in speaker_index_map:
-                        speaker_index_map[raw_speaker_id] = next_speaker_index
-                        next_speaker_index += 1
-                    speaker_label = f"Speaker {speaker_index_map[raw_speaker_id]}"
-                
-                annotated_segment = self._annotate_segment(segment, speaker_label, temp_audio_path)
+            for semantic_seg in semantic_segments:
+                annotated_segment = self._annotate_segment(semantic_seg, temp_audio_path)
                 segments.append(annotated_segment)
             
             processing_time = time.time() - start_time

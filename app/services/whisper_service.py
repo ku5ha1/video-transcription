@@ -18,11 +18,12 @@ class WhisperService:
         logger.info("Whisper model loaded successfully")
     
     def transcribe_audio(self, audio_path: str):
-        """Transcribe audio file and return segments"""
+        """Transcribe audio file and return segments with word-level timestamps"""
         logger.info(f"Starting transcription for: {audio_path}")
         segments, info = self.model.transcribe(
             audio_path,
             beam_size=5,
+            word_timestamps=True,
             language=settings.whisper_language if settings.whisper_language else None
         )
         logger.info(f"Transcription completed. Detected language: {info.language}")
