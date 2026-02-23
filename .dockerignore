@@ -1,0 +1,56 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific
+output/
+uploads/
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.webm
+legacy/
+log.txt
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Documentation
+README*.md
+*.md
+!requirements.txt
+
+# Environment
+.env
+.env.example
+
+# Alembic (will be copied explicitly)
+# alembic/
+
+# Models (downloaded during build)
+models/
+sherpa-onnx/

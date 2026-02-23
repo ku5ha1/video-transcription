@@ -1,0 +1,311 @@
+{% extends "base.html" %}
+
+{% block title %}{{ video.filename }} - Video Transcription System{% endblock %}
+
+{% block extra_head %}
+<style>
+    .transcript-segment {
+        transition: all 0.2s ease;
+    }
+    .transcript-segment:hover {
+        background-color: rgba(99, 102, 241, 0.1);
+    }
+    .transcript-segment.active {
+        background-color: rgba(99, 102, 241, 0.2);
+        border-left: 3px solid #6366f1;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex justify-between items-center">
+    <a href="/" class="text-gray-400 hover:text-white transition-colors inline-flex items-center">
+        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+        </svg>
+        Back to Dashboard
+    </a>
+    <button 
+        onclick="deleteVideo('{{ video.id }}')"
+        class="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30 rounded-lg transition-colors inline-flex items-center">
+        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+        </svg>
+        Delete Video
+    </button>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Main Content: Video Player & Chat -->
+    <div class="lg:col-span-2 space-y-6">
+        <!-- Video Info -->
+        <div class="bg-gray-800 rounded-lg border border-gray-700 p-6">
+            <h1 class="text-2xl font-bold text-white mb-2">{{ video.filename }}</h1>
+            <div class="flex items-center space-x-4 text-sm text-gray-400">
+                <span>{{ video.created_at.strftime('%B %d, %Y') }}</span>
+                {% if video.duration %}
+                <span>•</span>
+                <span>{{ "%.1f"|format(video.duration) }}s processing time</span>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Video Player -->
+        <div class="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+            <video 
+                id="video-player"
+                class="w-full"
+                controls
+                preload="metadata"
+            >
+                <source src="/api/web/videos/{{ video.id }}/stream" type="video/mp4">
+                Your browser does not support the video tag.
+            </video>
+        </div>
+
+        <!-- Chat Interface -->
+        <div class="bg-gray-800 rounded-lg border border-gray-700 p-6">
+            <h3 class="text-lg font-semibold text-white mb-4 flex items-center">
+                <svg class="w-5 h-5 mr-2 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"></path>
+                </svg>
+                Ask about this video
+            </h3>
+            
+            <div id="chat-messages" class="space-y-4 mb-4 max-h-64 overflow-y-auto"
+                 hx-get="/api/web/chat/{{ video.id }}/history"
+                 hx-trigger="load"
+                 hx-swap="innerHTML">
+                <!-- Chat messages will load here -->
+            </div>
+
+            <form id="chat-form" class="flex space-x-2">
+                <input 
+                    type="text" 
+                    id="chat-input"
+                    placeholder="Ask a question about the video..."
+                    class="flex-1 px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-primary transition-colors"
+                >
+                <button 
+                    type="submit"
+                    class="px-6 py-3 bg-primary hover:bg-primary/80 text-white rounded-lg transition-colors font-medium"
+                >
+                    Send
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Sidebar: Interactive Transcript -->
+    <div class="lg:col-span-1">
+        <div class="bg-gray-800 rounded-lg border border-gray-700 sticky top-6">
+            <div class="p-6 border-b border-gray-700">
+                <h3 class="text-lg font-semibold text-white">Interactive Transcript</h3>
+                <p class="text-sm text-gray-400 mt-1">Click to jump to timestamp</p>
+            </div>
+
+            <div id="transcript-container" class="overflow-y-auto" style="max-height: calc(100vh - 200px);">
+                {% if segments %}
+                {% for segment in segments %}
+                <div 
+                    class="transcript-segment p-4 border-b border-gray-700 cursor-pointer"
+                    data-start="{{ segment.start_time }}"
+                    data-end="{{ segment.end_time }}"
+                >
+                    <!-- Timestamp & Speaker -->
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs font-mono text-primary">
+                            {{ "%02d:%02d" | format(segment.start_time // 60 | int, segment.start_time % 60 | int) }}
+                        </span>
+                        <span class="text-xs font-medium text-gray-400">
+                            {{ segment.speaker_label }}
+                        </span>
+                    </div>
+
+                    <!-- Text -->
+                    <p class="text-sm text-gray-300 mb-2">{{ segment.text }}</p>
+
+                    <!-- Metadata Badges -->
+                    <div class="flex flex-wrap gap-2">
+                        {% if segment.audio_emotion %}
+                        <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-purple-500/20 text-purple-400 border border-purple-500/30">
+                            {{ segment.audio_emotion }}
+                        </span>
+                        {% endif %}
+                        {% if segment.text_tone %}
+                        <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                            {{ segment.text_tone }}
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+                {% else %}
+                <div class="p-8 text-center text-gray-400">
+                    <p>No transcript segments available</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const videoPlayer = document.getElementById('video-player');
+    const transcriptSegments = document.querySelectorAll('.transcript-segment');
+
+    // Seek to specific time when clicking transcript
+    function seekToTime(time) {
+        videoPlayer.currentTime = time;
+        videoPlayer.play();
+    }
+
+    // Click to seek functionality
+    transcriptSegments.forEach(segment => {
+        segment.addEventListener('click', () => {
+            seekToTime(parseFloat(segment.dataset.start));
+        });
+    });
+
+    // Highlight current segment as video plays
+    videoPlayer.addEventListener('timeupdate', function() {
+        const currentTime = videoPlayer.currentTime;
+        
+        transcriptSegments.forEach(segment => {
+            const start = parseFloat(segment.dataset.start);
+            const end = parseFloat(segment.dataset.end);
+            
+            if (currentTime >= start && currentTime < end) {
+                segment.classList.add('active');
+                
+                // Auto-scroll to active segment
+                segment.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            } else {
+                segment.classList.remove('active');
+            }
+        });
+    });
+
+    // Chat functionality
+    document.getElementById('chat-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const input = document.getElementById('chat-input');
+        const query = input.value.trim();
+        
+        if (!query) return;
+        
+        const chatMessages = document.getElementById('chat-messages');
+        
+        // Add user message to chat
+        const userMessageDiv = document.createElement('div');
+        userMessageDiv.className = 'flex justify-end';
+        userMessageDiv.innerHTML = `
+            <div class="bg-primary/20 border border-primary/30 rounded-lg px-4 py-2 max-w-xs">
+                <p class="text-sm text-white">${escapeHtml(query)}</p>
+            </div>
+        `;
+        chatMessages.appendChild(userMessageDiv);
+        
+        input.value = '';
+        
+        // Show loading
+        const loadingDiv = document.createElement('div');
+        loadingDiv.className = 'flex justify-start';
+        loadingDiv.id = 'loading-message';
+        loadingDiv.innerHTML = `
+            <div class="bg-gray-700 border border-gray-600 rounded-lg px-4 py-2">
+                <p class="text-sm text-gray-300">Thinking...</p>
+            </div>
+        `;
+        chatMessages.appendChild(loadingDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+        
+        // Call chat API
+        try {
+            const response = await fetch('/api/web/chat/{{ video.id }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ query: query })
+            });
+            
+            const data = await response.json();
+            
+            // Remove loading message
+            document.getElementById('loading-message').remove();
+            
+            // Add AI response
+            const assistantMessageDiv = document.createElement('div');
+            assistantMessageDiv.className = 'flex justify-start';
+            assistantMessageDiv.innerHTML = `
+                <div class="bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 max-w-md">
+                    <p class="text-sm text-gray-100">${escapeHtml(data.answer)}</p>
+                    ${data.source_segments && data.source_segments.length > 0 ? `
+                        <div class="mt-2 pt-2 border-t border-gray-600">
+                            <p class="text-xs text-gray-400 mb-1">Sources:</p>
+                            ${data.source_segments.map(s => `
+                                <button 
+                                    onclick="seekToTime(${s.timestamp.match(/\d+/g).reduce((acc, val, i) => i === 0 ? parseInt(val) * 60 : acc + parseInt(val), 0)})"
+                                    class="text-xs text-primary hover:text-primary/80 mr-2"
+                                >
+                                    ${s.timestamp}
+                                </button>
+                            `).join('')}
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+            chatMessages.appendChild(assistantMessageDiv);
+            
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        } catch (error) {
+            console.error('Chat error:', error);
+            document.getElementById('loading-message').remove();
+            
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'flex justify-start';
+            errorDiv.innerHTML = `
+                <div class="bg-red-500/20 border border-red-500/30 rounded-lg px-4 py-2">
+                    <p class="text-sm text-red-400">Error: Could not get response</p>
+                </div>
+            `;
+            chatMessages.appendChild(errorDiv);
+        }
+    });
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    function getCookie(name) {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length === 2) return parts.pop().split(';').shift();
+    }
+
+    async function deleteVideo(videoId) {
+        if (!confirm('Are you sure you want to delete this video? This action cannot be undone.')) {
+            return;
+        }
+        
+        try {
+            const response = await fetch(`/api/web/videos/${videoId}`, {
+                method: 'DELETE'
+            });
+            
+            if (response.ok) {
+                window.location.href = '/';
+            } else {
+                alert('Failed to delete video. Please try again.');
+            }
+        } catch (error) {
+            console.error('Delete error:', error);
+            alert('An error occurred while deleting the video.');
+        }
+    }
+</script>
+{% endblock %}
