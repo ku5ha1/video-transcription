@@ -4,12 +4,12 @@ from app.core.config import settings
 import redis
 from minio import Minio
 from minio.error import S3Error
-import httpx
 from celery import Celery
 from typing import Dict, Any
 
 logger = get_logger("api.health")
 router = APIRouter()
+
 
 def check_redis() -> Dict[str, Any]:
     """Check Redis connection"""
@@ -21,6 +21,7 @@ def check_redis() -> Dict[str, Any]:
         logger.error(f"Redis health check failed: {e}")
         return {"status": "unhealthy", "message": str(e)}
 
+
 def check_minio() -> Dict[str, Any]:
     """Check MinIO connection"""
     try:
@@ -28,7 +29,7 @@ def check_minio() -> Dict[str, Any]:
             settings.minio_endpoint,
             access_key=settings.minio_access_key,
             secret_key=settings.minio_secret_key,
-            secure=settings.minio_secure
+            secure=settings.minio_secure,
         )
         # Try to list buckets as a health check
         list(client.list_buckets())
@@ -40,18 +41,24 @@ def check_minio() -> Dict[str, Any]:
         logger.error(f"MinIO health check failed: {e}")
         return {"status": "unhealthy", "message": str(e)}
 
+
 def check_qdrant() -> Dict[str, Any]:
     """Check Qdrant connection"""
     try:
         import httpx
+
         response = httpx.get(f"{settings.qdrant_url}/health", timeout=2.0)
         if response.status_code == 200:
             return {"status": "healthy", "message": "Qdrant is reachable"}
         else:
-            return {"status": "unhealthy", "message": f"Status code: {response.status_code}"}
+            return {
+                "status": "unhealthy",
+                "message": f"Status code: {response.status_code}",
+            }
     except Exception as e:
         logger.error(f"Qdrant health check failed: {e}")
         return {"status": "unhealthy", "message": str(e)}
+
 
 def check_celery() -> Dict[str, Any]:
     """Check Celery worker status"""
@@ -59,13 +66,13 @@ def check_celery() -> Dict[str, Any]:
         celery_app = Celery(broker=settings.redis_url, backend=settings.redis_url)
         inspect = celery_app.control.inspect()
         active_workers = inspect.active()
-        
+
         if active_workers:
             worker_count = len(active_workers)
             return {
-                "status": "healthy", 
+                "status": "healthy",
                 "message": f"{worker_count} worker(s) active",
-                "workers": list(active_workers.keys())
+                "workers": list(active_workers.keys()),
             }
         else:
             return {"status": "unhealthy", "message": "No active workers found"}
@@ -73,20 +80,18 @@ def check_celery() -> Dict[str, Any]:
         logger.error(f"Celery health check failed: {e}")
         return {"status": "unhealthy", "message": str(e)}
 
+
 @router.get("/health")
 async def health_check():
     """Basic health check endpoint"""
-    return {
-        "status": "healthy",
-        "service": settings.app_name,
-        "version": "1.0.0"
-    }
+    return {"status": "healthy", "service": settings.app_name, "version": "1.0.0"}
+
 
 @router.get("/health/detailed")
 async def detailed_health_check():
     """Detailed health check for all services"""
     logger.info("Detailed health check requested")
-    
+
     health_status = {
         "service": settings.app_name,
         "version": "1.0.0",
@@ -94,32 +99,35 @@ async def detailed_health_check():
             "redis": check_redis(),
             "minio": check_minio(),
             "qdrant": check_qdrant(),
-            "celery": check_celery()
-        }
+            "celery": check_celery(),
+        },
     }
-    
+
     # Determine overall status
     all_healthy = all(
-        component["status"] == "healthy" 
+        component["status"] == "healthy"
         for component in health_status["components"].values()
     )
-    
+
     health_status["status"] = "healthy" if all_healthy else "degraded"
-    
+
     logger.info(f"Health check completed: {health_status['status']}")
-    
+
     # Return 503 if any component is unhealthy
     if not all_healthy:
         raise HTTPException(status_code=503, detail=health_status)
-    
+
     return health_status
+
 
 @router.get("/health/ready")
 async def readiness_check():
     """Kubernetes-style readiness probe"""
     redis_status = check_redis()
-    
+
     if redis_status["status"] == "healthy":
         return {"ready": True, "message": "Service is ready"}
     else:
-        raise HTTPException(status_code=503, detail={"ready": False, "message": "Service not ready"})
+        raise HTTPException(
+            status_code=503, detail={"ready": False, "message": "Service not ready"}
+        )

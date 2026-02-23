@@ -1,5 +1,4 @@
-from fastapi import FastAPI, Request
-from fastapi.staticfiles import StaticFiles
+from fastapi import FastAPI
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -20,13 +19,13 @@ limiter = Limiter(
     key_func=get_remote_address,
     storage_uri=settings.redis_url,
     default_limits=["20/minute"],  # Global limit
-    headers_enabled=True
+    headers_enabled=True,
 )
 
 app = FastAPI(
     title="Video Transcription System",
     description="AI-powered video transcription with emotion and tone analysis",
-    version="1.0.0"
+    version="1.0.0",
 )
 
 # Add rate limiting middleware
@@ -44,6 +43,7 @@ app.include_router(transcription.router, prefix="/api/v1", tags=["transcription"
 app.include_router(chat.router, prefix="/api/v1", tags=["chat"])
 app.include_router(health.router, tags=["health"])
 
+
 @app.on_event("startup")
 async def startup_event():
     logger.info("Starting Video Transcription API")
@@ -51,14 +51,15 @@ async def startup_event():
     if settings.debug:
         await init_db()
         logger.info("Database initialized")
-    
+
     # Initialize Redis client
     await RedisClient.get_client()
     logger.info("Redis client initialized")
-    
+
     # Initialize Qdrant collection
     vector_service.init_collection()
     logger.info("Qdrant collection initialized")
+
 
 @app.on_event("shutdown")
 async def shutdown_event():

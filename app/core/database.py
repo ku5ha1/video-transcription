@@ -1,6 +1,7 @@
 """
 Database session management with SQLAlchemy async support
 """
+
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from app.core.config import settings
 from app.models.database import Base
@@ -15,7 +16,7 @@ engine = create_async_engine(
     pool_pre_ping=True,
     pool_size=10,
     max_overflow=20,
-    pool_recycle=3600  # Recycle connections after 1 hour
+    pool_recycle=3600,  # Recycle connections after 1 hour
 )
 
 # Create async session factory
@@ -24,14 +25,14 @@ AsyncSessionLocal = async_sessionmaker(
     class_=AsyncSession,
     expire_on_commit=False,
     autocommit=False,
-    autoflush=False
+    autoflush=False,
 )
 
 
 async def get_db():
     """
     Dependency for getting async database session
-    
+
     Usage:
         @app.get("/items")
         async def get_items(db: AsyncSession = Depends(get_db)):

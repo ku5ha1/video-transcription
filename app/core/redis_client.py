@@ -1,6 +1,7 @@
 """
 Redis client for caching and rate limiting
 """
+
 import redis.asyncio as aioredis
 from redis.asyncio import Redis
 from typing import Optional
@@ -9,11 +10,12 @@ from app.core.logging import get_logger
 
 logger = get_logger("redis_client")
 
+
 class RedisClient:
     """Singleton Redis client for application-wide caching"""
-    
+
     _instance: Optional[Redis] = None
-    
+
     @classmethod
     async def get_client(cls) -> Redis:
         """Get or create Redis client instance"""
@@ -23,14 +25,14 @@ class RedisClient:
                     settings.redis_url,
                     encoding="utf-8",
                     decode_responses=True,
-                    max_connections=10
+                    max_connections=10,
                 )
                 logger.info("Redis client initialized")
             except Exception as e:
                 logger.error(f"Failed to initialize Redis client: {e}")
                 raise
         return cls._instance
-    
+
     @classmethod
     async def close(cls):
         """Close Redis connection"""
@@ -38,6 +40,7 @@ class RedisClient:
             await cls._instance.close()
             cls._instance = None
             logger.info("Redis client closed")
+
 
 # Global instance getter
 async def get_redis() -> Redis:

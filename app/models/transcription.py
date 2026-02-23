@@ -1,6 +1,7 @@
 from pydantic import BaseModel
 from typing import List, Optional
 
+
 class TranscriptSegment(BaseModel):
     timestamp: str
     speaker: str
@@ -9,6 +10,7 @@ class TranscriptSegment(BaseModel):
     tone: str
     start_time: float
     end_time: float
+
 
 class TranscriptionResponse(BaseModel):
     success: bool

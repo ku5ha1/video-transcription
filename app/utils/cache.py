@@ -1,6 +1,7 @@
 """
 Caching utilities for Redis-based response caching
 """
+
 import json
 import hashlib
 from typing import Optional, Any, Callable
@@ -24,12 +25,12 @@ TTL_VIDEO_HASH = 86400 * 30  # 30 days
 def generate_cache_key(prefix: str, *args, **kwargs) -> str:
     """
     Generate a cache key from prefix and arguments
-    
+
     Args:
         prefix: Cache key prefix
         *args: Positional arguments to include in key
         **kwargs: Keyword arguments to include in key
-    
+
     Returns:
         Cache key string
     """
@@ -42,10 +43,10 @@ def generate_cache_key(prefix: str, *args, **kwargs) -> str:
 def generate_query_hash(query: str) -> str:
     """
     Generate SHA-256 hash of a query string
-    
+
     Args:
         query: Query string to hash
-    
+
     Returns:
         Hex digest of hash
     """
@@ -55,10 +56,10 @@ def generate_query_hash(query: str) -> str:
 async def get_cached_value(key: str) -> Optional[Any]:
     """
     Get cached value from Redis
-    
+
     Args:
         key: Cache key
-    
+
     Returns:
         Cached value or None if not found
     """
@@ -78,12 +79,12 @@ async def get_cached_value(key: str) -> Optional[Any]:
 async def set_cached_value(key: str, value: Any, ttl: int = 3600) -> bool:
     """
     Set cached value in Redis with TTL
-    
+
     Args:
         key: Cache key
         value: Value to cache (must be JSON serializable)
         ttl: Time to live in seconds
-    
+
     Returns:
         True if successful, False otherwise
     """
@@ -101,10 +102,10 @@ async def set_cached_value(key: str, value: Any, ttl: int = 3600) -> bool:
 async def delete_cached_value(key: str) -> bool:
     """
     Delete cached value from Redis
-    
+
     Args:
         key: Cache key
-    
+
     Returns:
         True if successful, False otherwise
     """
@@ -121,10 +122,10 @@ async def delete_cached_value(key: str) -> bool:
 async def invalidate_pattern(pattern: str) -> int:
     """
     Invalidate all cache keys matching a pattern
-    
+
     Args:
         pattern: Redis key pattern (e.g., "cache:transcript:*")
-    
+
     Returns:
         Number of keys deleted
     """
@@ -133,7 +134,7 @@ async def invalidate_pattern(pattern: str) -> int:
         keys = []
         async for key in redis.scan_iter(match=pattern):
             keys.append(key)
-        
+
         if keys:
             deleted = await redis.delete(*keys)
             logger.info(f"Invalidated {deleted} keys matching pattern: {pattern}")
@@ -144,20 +145,23 @@ async def invalidate_pattern(pattern: str) -> int:
         return 0
 
 
-def cache_response(prefix: str, ttl: int = 3600, key_builder: Optional[Callable] = None):
+def cache_response(
+    prefix: str, ttl: int = 3600, key_builder: Optional[Callable] = None
+):
     """
     Decorator for caching function responses in Redis
-    
+
     Args:
         prefix: Cache key prefix
         ttl: Time to live in seconds
         key_builder: Optional custom function to build cache key from args
-    
+
     Usage:
         @cache_response("cache:transcript:", ttl=3600)
         async def get_transcript(video_id: str):
             ...
     """
+
     def decorator(func: Callable):
         @wraps(func)
         async def wrapper(*args, **kwargs):
@@ -166,20 +170,21 @@ def cache_response(prefix: str, ttl: int = 3600, key_builder: Optional[Callable]
                 cache_key = key_builder(*args, **kwargs)
             else:
                 cache_key = generate_cache_key(prefix, *args, **kwargs)
-            
+
             # Try to get from cache
             cached = await get_cached_value(cache_key)
             if cached is not None:
                 return cached
-            
+
             # Execute function
             result = await func(*args, **kwargs)
-            
+
             # Cache result
             if result is not None:
                 await set_cached_value(cache_key, result, ttl)
-            
+
             return result
-        
+
         return wrapper
+
     return decorator
