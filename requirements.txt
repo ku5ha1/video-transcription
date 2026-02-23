@@ -32,3 +32,6 @@ fastembed>=0.2.0
 google-genai>=0.3.0
 slowapi>=0.1.9
 aioredis>=2.0.0
+pytest
+# Security scanning
+bandit>=1.7.0
