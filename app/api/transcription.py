@@ -1,11 +1,19 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from app.models.transcription import TranscriptionResponse
 from app.models.task import TaskResponse, TaskStatusResponse
 from app.models.database import User, Video, VideoStatus, TranscriptSegment
 from app.schemas.video import VideoResponse, VideoDetailResponse, VideoListResponse, TranscriptSegmentResponse
 from app.services.minio_service import MinIOService
+from app.utils.cache import (
+    get_cached_value,
+    set_cached_value,
+    CACHE_PREFIX_TRANSCRIPT,
+    TTL_TRANSCRIPT
+)
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from app.core.exceptions import FileValidationError, create_http_exception
@@ -19,6 +27,9 @@ import uuid
 logger = get_logger("api.transcription")
 router = APIRouter()
 minio_service = MinIOService()
+
+# Initialize limiter
+limiter = Limiter(key_func=get_remote_address)
 
 def validate_file(file: UploadFile) -> None:
     """Validate uploaded file"""
@@ -41,7 +52,9 @@ def validate_file(file: UploadFile) -> None:
         )
 
 @router.post("/transcribe", response_model=TaskResponse)
+@limiter.limit("2/minute")  # Strict limit for transcription endpoint
 async def transcribe_video(
+    request: Request,
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
@@ -205,11 +218,19 @@ async def get_video_detail(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Get video details with transcript segments
+    Get video details with transcript segments (with Redis caching)
     
     Only returns video if it belongs to the authenticated user
     """
     logger.info(f"Video detail requested: {video_id} by user: {current_user.email}")
+    
+    # Check cache first
+    cache_key = f"{CACHE_PREFIX_TRANSCRIPT}{video_id}"
+    cached_response = await get_cached_value(cache_key)
+    
+    if cached_response:
+        logger.info(f"Cache hit for video transcript: {video_id}")
+        return VideoDetailResponse(**cached_response)
     
     # Fetch video with segments
     from sqlalchemy.orm import selectinload
@@ -242,7 +263,7 @@ async def get_video_detail(
         for s in video.transcript_segments
     ]
     
-    return VideoDetailResponse(
+    response = VideoDetailResponse(
         id=video.id,
         user_id=video.user_id,
         filename=video.filename,
@@ -251,6 +272,14 @@ async def get_video_detail(
         created_at=video.created_at,
         segments=segments
     )
+    
+    # Cache the response (only if video is completed)
+    if video.status == VideoStatus.COMPLETED:
+        response_dict = response.model_dump(mode='json')
+        await set_cached_value(cache_key, response_dict, TTL_TRANSCRIPT)
+        logger.info(f"Cached video transcript: {video_id}")
+    
+    return response
 
 
 @router.delete("/videos/{video_id}")

@@ -17,8 +17,14 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # Create chat_role enum
-    op.execute("CREATE TYPE chatrole AS ENUM ('user', 'assistant')")
+    # Create chat_role enum (with error handling for existing type)
+    op.execute("""
+        DO $$ BEGIN
+            CREATE TYPE chatrole AS ENUM ('user', 'assistant');
+        EXCEPTION
+            WHEN duplicate_object THEN null;
+        END $$;
+    """)
     
     # Create chat_messages table
     op.create_table(
@@ -26,7 +32,7 @@ def upgrade() -> None:
         sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
         sa.Column('video_id', postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column('user_id', postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column('role', sa.Enum('user', 'assistant', name='chatrole'), nullable=False),
+        sa.Column('role', sa.String(50), nullable=False),
         sa.Column('content', sa.Text(), nullable=False),
         sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.text('now()')),
         sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),

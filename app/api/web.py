@@ -4,15 +4,21 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import Optional
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from app.core.security import hash_password, verify_password, create_access_token
 from app.models.database import User, Video
+from app.utils.file_hash import calculate_file_hash
 from app.core.logging import get_logger
 
 logger = get_logger("api.web")
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
+
+# Initialize limiter for this router
+limiter = Limiter(key_func=get_remote_address)
 
 
 def get_current_user_optional(request: Request, db: AsyncSession = Depends(get_db)):
@@ -433,12 +439,13 @@ async def get_video_status_badge(
 
 
 @router.post("/api/web/upload")
+@limiter.limit("2/minute")  # Strict limit for upload endpoint
 async def web_upload(
     request: Request,
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db)
 ):
-    """Web upload endpoint using cookie authentication"""
+    """Web upload endpoint using cookie authentication with file hash deduplication"""
     from app.services.minio_service import MinIOService
     from app.models.database import VideoStatus
     from app.core.celery import process_video_task
@@ -460,17 +467,42 @@ async def web_upload(
     if file_ext not in settings.allowed_video_extensions:
         raise HTTPException(status_code=400, detail=f"Invalid file format: {file_ext}")
     
-    # Read and upload to MinIO
+    # Read file content
     content = await file.read()
+    
+    # Calculate file hash for deduplication
+    file_hash = calculate_file_hash(content)
+    logger.info(f"Calculated file hash: {file_hash[:16]}... for {file.filename}")
+    
+    # Check if this file already exists for this user
+    result = await db.execute(
+        select(Video).where(
+            Video.user_id == current_user.id,
+            Video.file_hash == file_hash
+        )
+    )
+    existing_video = result.scalar_one_or_none()
+    
+    if existing_video:
+        logger.info(f"Duplicate file detected: {file_hash[:16]}... - linking to existing video: {existing_video.id}")
+        return {
+            "message": "This video has already been uploaded and processed",
+            "video_id": str(existing_video.id),
+            "duplicate": True,
+            "status": existing_video.status.value
+        }
+    
+    # Upload to MinIO
     minio_service = MinIOService()
     object_name = f"users/{current_user.id}/videos/{uuid.uuid4()}{file_ext}"
     minio_service.upload_file(content, object_name, file.content_type or "video/mp4")
     
-    # Create video record
+    # Create video record with file hash
     video = Video(
         user_id=current_user.id,
         filename=file.filename,
         minio_object_key=object_name,
+        file_hash=file_hash,
         status=VideoStatus.PENDING
     )
     db.add(video)
@@ -487,7 +519,12 @@ async def web_upload(
     
     logger.info(f"Task submitted: {task.id} for video: {video.id}")
     
-    return {"message": "Upload successful", "task_id": task.id, "video_id": str(video.id)}
+    return {
+        "message": "Upload successful",
+        "task_id": task.id,
+        "video_id": str(video.id),
+        "duplicate": False
+    }
 
 
 @router.get("/api/web/videos/{video_id}/stream")
@@ -497,7 +534,7 @@ async def web_stream_video(
     db: AsyncSession = Depends(get_db)
 ):
     """Web video streaming endpoint using cookie authentication"""
-    from fastapi.responses import RedirectResponse
+    from fastapi.responses import StreamingResponse
     from app.services.minio_service import MinIOService
     
     try:
@@ -515,10 +552,18 @@ async def web_stream_video(
         if not video:
             raise HTTPException(status_code=404, detail="Video not found")
         
-        # Generate presigned URL using MinIO service
+        # Stream video from MinIO
         minio_service = MinIOService()
-        presigned_url = minio_service.get_file_url(video.minio_object_key, expires_in_seconds=3600)
-        return RedirectResponse(url=presigned_url)
+        response = minio_service.client.get_object(minio_service.bucket_name, video.minio_object_key)
+        
+        return StreamingResponse(
+            response.stream(),
+            media_type="video/mp4",
+            headers={
+                "Accept-Ranges": "bytes",
+                "Content-Disposition": f'inline; filename="{video.filename}"'
+            }
+        )
         
     except HTTPException:
         raise
@@ -526,10 +571,7 @@ async def web_stream_video(
         await db.rollback()
         logger.error(f"Failed to stream video: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to stream video")
-        return RedirectResponse(url=presigned_url)
-    except Exception as e:
-        logger.error(f"Failed to generate presigned URL: {e}")
-        raise HTTPException(status_code=500, detail="Failed to stream video")
+
 
 
 

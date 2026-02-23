@@ -30,3 +30,5 @@ pydantic[email]
 qdrant-client>=1.7.0
 fastembed>=0.2.0
 google-genai>=0.3.0
+slowapi>=0.1.9
+aioredis>=2.0.0

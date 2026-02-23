@@ -97,9 +97,6 @@ class MinIOService:
                 expires=timedelta(seconds=expires_in_seconds)
             )
             
-            # Replace internal Docker hostname with external endpoint
-            url = url.replace(settings.minio_endpoint, self.external_endpoint)
-            
             logger.info(f"Generated presigned URL for: {object_name}")
             return url
             

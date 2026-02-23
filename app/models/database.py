@@ -50,6 +50,7 @@ class Video(Base):
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     filename = Column(String(255), nullable=False)
     minio_object_key = Column(String(500), nullable=False)
+    file_hash = Column(String(64), nullable=True, index=True)  # SHA-256 hash for deduplication
     status = Column(SQLEnum(VideoStatus), default=VideoStatus.PENDING, nullable=False, index=True)
     duration = Column(Float, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

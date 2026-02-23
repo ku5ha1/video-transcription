@@ -3,6 +3,13 @@ from typing import List, Optional
 from google import genai
 from google.genai import types
 from app.services.vector_store import VectorStoreService
+from app.utils.cache import (
+    get_cached_value, 
+    set_cached_value, 
+    generate_query_hash,
+    CACHE_PREFIX_CHAT,
+    TTL_CHAT
+)
 from app.core.logging import get_logger
 from app.core.config import settings
 
@@ -85,7 +92,7 @@ Relevant transcript snippets:
         limit: int = 5
     ) -> dict:
         """
-        Process a chat query using RAG with conversation memory
+        Process a chat query using RAG with conversation memory and LLM response caching
         
         Args:
             query: User's question
@@ -98,6 +105,19 @@ Relevant transcript snippets:
             dict with answer and source_segments
         """
         try:
+            # Generate cache key for this query + video combination
+            query_hash = generate_query_hash(query.lower().strip())
+            cache_key = f"{CACHE_PREFIX_CHAT}{video_id}:{query_hash}"
+            
+            # Check cache first (only for queries without history to avoid stale context)
+            if not history or len(history) == 0:
+                from app.core.redis_client import redis_client
+                cached_response = redis_client.get(cache_key)
+                if cached_response:
+                    import json
+                    logger.info(f"Cache hit for chat query: {query[:50]}...")
+                    return json.loads(cached_response)
+            
             # Step 1: Retrieve relevant segments from Qdrant
             segments = self.vector_service.search_segments(
                 query=query,
@@ -141,12 +161,20 @@ Relevant transcript snippets:
                     "video_id": payload.get("video_id", "")
                 })
             
-            return {
+            result = {
                 "answer": answer,
                 "source_segments": source_segments,
-                "query": query,
-                "retrieved_segments_count": len(segments)
+                "query": query
             }
+            
+            # Cache the response (only for queries without history)
+            if not history or len(history) == 0:
+                from app.core.redis_client import redis_client
+                import json
+                redis_client.setex(cache_key, TTL_CHAT, json.dumps(result))
+                logger.info(f"Cached chat response for query: {query[:50]}...")
+            
+            return result
             
         except Exception as e:
             logger.error(f"Chat failed: {e}", exc_info=True)
