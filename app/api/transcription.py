@@ -26,10 +26,13 @@ import uuid
 
 logger = get_logger("api.transcription")
 router = APIRouter()
-minio_service = MinIOService()
 
 # Initialize limiter
 limiter = Limiter(key_func=get_remote_address)
+
+def get_minio_service() -> MinIOService:
+    """Dependency to get MinIO service instance"""
+    return MinIOService()
 
 def validate_file(file: UploadFile) -> None:
     """Validate uploaded file"""
@@ -57,7 +60,8 @@ async def transcribe_video(
     request: Request,
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    minio_service: MinIOService = Depends(get_minio_service)
 ):
     """
     Upload a video file and start asynchronous transcription processing
@@ -286,7 +290,8 @@ async def get_video_detail(
 async def delete_video(
     video_id: str,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    minio_service: MinIOService = Depends(get_minio_service)
 ):
     """
     Delete a video and all its transcript segments
@@ -327,7 +332,8 @@ async def delete_video(
 async def stream_video(
     video_id: str,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    minio_service: MinIOService = Depends(get_minio_service)
 ):
     """
     Stream video file from MinIO
