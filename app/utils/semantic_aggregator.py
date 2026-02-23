@@ -1,6 +1,3 @@
-"""
-Semantic Aggregator for reconstructing sentence-level segments from word-level timestamps
-"""
 from typing import List, Dict, Any
 from app.core.logging import get_logger
 
