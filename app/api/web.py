@@ -300,7 +300,7 @@ async def web_chat(
         from app.services.chat_service import ChatService
         chat_service = ChatService()
         
-        result = chat_service.chat(
+        result = await chat_service.chat(
             query=query,
             user_id=str(current_user.id),
             video_id=video_id,

@@ -82,7 +82,7 @@ Relevant transcript snippets:
         
         return prompt
     
-    def chat(
+    async def chat(
         self, 
         query: str, 
         user_id: str, 
@@ -110,12 +110,10 @@ Relevant transcript snippets:
             
             # Check cache first (only for queries without history to avoid stale context)
             if not history or len(history) == 0:
-                from app.core.redis_client import redis_client
-                cached_response = redis_client.get(cache_key)
+                cached_response = await get_cached_value(cache_key)
                 if cached_response:
-                    import json
                     logger.info(f"Cache hit for chat query: {query[:50]}...")
-                    return json.loads(cached_response)
+                    return cached_response
             
             # Step 1: Retrieve relevant segments from Qdrant
             segments = self.vector_service.search_segments(
@@ -168,9 +166,7 @@ Relevant transcript snippets:
             
             # Cache the response (only for queries without history)
             if not history or len(history) == 0:
-                from app.core.redis_client import redis_client
-                import json
-                redis_client.setex(cache_key, TTL_CHAT, json.dumps(result))
+                await set_cached_value(cache_key, result, TTL_CHAT)
                 logger.info(f"Cached chat response for query: {query[:50]}...")
             
             return result

@@ -53,7 +53,7 @@ async def chat_with_video(
     # For now, we trust the user_id filtering in vector search
 
     # Process chat query
-    result = chat_service.chat(
+    result = await chat_service.chat(
         query=request.query,
         user_id=str(current_user.id),
         video_id=video_id,
@@ -78,7 +78,7 @@ async def chat_general(
     """
     logger.info(f"General chat request from {current_user.email}")
 
-    result = chat_service.chat(
+    result = await chat_service.chat(
         query=request.query,
         user_id=str(current_user.id),
         video_id=request.video_id,
