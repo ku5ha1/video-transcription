@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
     # Device settings
-    device: str = "cpu"
+    device: str = "cuda"
 
     # Whisper settings
     whisper_model_id: str = "deepdml/faster-whisper-large-v3-turbo-ct2"
@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     # Sherpa-ONNX Diarization settings
     sherpa_model_dir: str = os.getenv("SHERPA_MODEL_DIR", "sherpa-onnx")
     sherpa_clustering_threshold: float = 0.8
+    sherpa_num_speakers: int = 0  # 0/negative means auto-infer
+    sherpa_min_duration_on: float = 0.3
+    sherpa_min_duration_off: float = 0.5
 
     # File settings
     max_file_size: int = 100 * 1024 * 1024  # 100MB

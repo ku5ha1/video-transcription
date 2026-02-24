@@ -7,6 +7,7 @@ import soundfile as sf
 import numpy as np
 from dotenv import load_dotenv
 from app.core.logging import get_logger
+from app.core.config import settings
 
 load_dotenv()
 logger = get_logger("services.diarization")
@@ -20,9 +21,7 @@ class DiarizationService:
         self.diarizer = None
 
         # Setup Sherpa-ONNX paths
-        base_dir = os.getenv(
-            "SHERPA_MODEL_DIR", os.path.join(os.getcwd(), "sherpa-onnx")
-        )
+        base_dir = settings.sherpa_model_dir
         seg_model = os.path.join(
             base_dir, "sherpa-onnx-pyannote-segmentation-3-0", "model.onnx"
         )
@@ -45,8 +44,28 @@ class DiarizationService:
                 ),
                 embedding=sherpa_onnx.SpeakerEmbeddingExtractorConfig(model=emb_model),
                 clustering=sherpa_onnx.FastClusteringConfig(
-                    num_clusters=0, threshold=0.8
+                    num_clusters=settings.sherpa_num_speakers,
+                    threshold=settings.sherpa_clustering_threshold,
                 ),
+                min_duration_on=settings.sherpa_min_duration_on,
+                min_duration_off=settings.sherpa_min_duration_off,
+            )
+
+            if not config.validate():
+                raise RuntimeError(
+                    "Invalid Sherpa-ONNX diarization config. Check model files and diarization settings."
+                )
+
+            logger.info(
+                "Sherpa diarization config",
+                extra={
+                    "extra_fields": {
+                        "num_speakers": settings.sherpa_num_speakers,
+                        "threshold": settings.sherpa_clustering_threshold,
+                        "min_duration_on": settings.sherpa_min_duration_on,
+                        "min_duration_off": settings.sherpa_min_duration_off,
+                    }
+                },
             )
             self.diarizer = sherpa_onnx.OfflineSpeakerDiarization(config)
             logger.info("Sherpa-ONNX diarization initialized successfully")

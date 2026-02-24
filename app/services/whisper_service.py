@@ -9,13 +9,30 @@ class WhisperService:
     """Service for audio transcription using Faster-Whisper"""
 
     def __init__(self):
-        logger.info(f"Loading Whisper Model: {settings.whisper_model_id}")
-        self.model = WhisperModel(
-            settings.whisper_model_id,
-            device=settings.device,
-            compute_type=settings.whisper_compute_type,
-            download_root=settings.whisper_model_cache_dir,
+        logger.info(
+            f"Loading Whisper Model: {settings.whisper_model_id} on {settings.device}"
         )
+        try:
+            self.model = WhisperModel(
+                settings.whisper_model_id,
+                device=settings.device,
+                compute_type=settings.whisper_compute_type,
+                download_root=settings.whisper_model_cache_dir,
+            )
+        except RuntimeError as e:
+            if settings.device == "cuda" and "CUDA" in str(e):
+                logger.warning(
+                    "Whisper CUDA initialization failed, falling back to CPU",
+                    exc_info=True,
+                )
+                self.model = WhisperModel(
+                    settings.whisper_model_id,
+                    device="cpu",
+                    compute_type="int8",
+                    download_root=settings.whisper_model_cache_dir,
+                )
+            else:
+                raise
         logger.info("Whisper model loaded successfully")
 
     def transcribe_audio(self, audio_path: str):

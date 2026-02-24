@@ -223,9 +223,6 @@ def process_video_task(
                 os.unlink(temp_video_path)
                 logger.info(f"Cleaned up temporary file after error: {temp_video_path}")
 
-            self.update_state(
-                state="FAILURE", meta={"error": str(e), "filename": filename}
-            )
             raise
         finally:
             # Always cleanup the engine

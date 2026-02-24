@@ -17,10 +17,13 @@ LOCK_FILE="/tmp/model_download.lock"
 (
     flock -n 200 || { echo "Another container is downloading models. Waiting..."; flock -w 300 200 || { echo "Timeout waiting for model download"; exit 1; } }
     
-    # Double-check after acquiring lock
-    if [ ! -d "/app/models/emotion" ] || [ ! -d "/app/models/tone" ]; then
+    # Double-check after acquiring lock by verifying model artifacts, not just directories
+    if [ ! -d "/app/models/emotion/models--Dpngtm--wav2vec2-emotion-recognition" ] || \
+       [ ! -d "/app/models/tone/models--cross-encoder--nli-deberta-v3-small" ] || \
+       [ ! -f "/app/models/sherpa/sherpa-onnx-pyannote-segmentation-3-0/model.onnx" ] || \
+       [ ! -f "/app/models/sherpa/nemo_en_titanet_small.onnx" ]; then
         echo "Models not found, downloading..."
-        python /app/scripts/download_models.py
+        python /app/scripts/download_models.py --hf-token "${HUGGING_FACE_TOKEN:-}"
     else
         echo "Models already exist, skipping download"
     fi

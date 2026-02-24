@@ -3,6 +3,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
+from fastapi.responses import JSONResponse
 from app.api import transcription, health, auth, chat, web
 from app.core.config import settings
 from app.core.logging import setup_logging, get_logger
@@ -28,9 +29,26 @@ app = FastAPI(
     version="1.0.0",
 )
 
+
+def rate_limit_exception_handler(request, exc):
+    """
+    SlowAPI can surface backend/storage errors (e.g., Redis connection issues)
+    through the same exception hook used for rate-limit violations.
+    Handle both explicitly so infra hiccups do not crash requests with AttributeError.
+    """
+    if isinstance(exc, RateLimitExceeded):
+        return _rate_limit_exceeded_handler(request, exc)
+
+    logger.error(f"Rate limiter backend error: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=503,
+        content={"error": "Rate limiter backend unavailable"},
+    )
+
+
 # Add rate limiting middleware
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_exception_handler(RateLimitExceeded, rate_limit_exception_handler)
 app.add_middleware(SlowAPIMiddleware)
 
 # Initialize vector store service
@@ -57,8 +75,10 @@ async def startup_event():
     logger.info("Redis client initialized")
 
     # Initialize Qdrant collection
-    vector_service.init_collection()
-    logger.info("Qdrant collection initialized")
+    if vector_service.init_collection():
+        logger.info("Qdrant collection initialized")
+    else:
+        logger.warning("Qdrant collection initialization failed")
 
 
 @app.on_event("shutdown")

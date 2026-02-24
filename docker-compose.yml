@@ -22,7 +22,9 @@ services:
       - QDRANT_URL=http://qdrant:6333
       - SHERPA_MODEL_DIR=/app/models/sherpa
       - WHISPER_MODEL_ID=deepdml/faster-whisper-large-v3-turbo-ct2
-      - WHISPER_COMPUTE_TYPE=int8
+      - WHISPER_COMPUTE_TYPE=float16
+      # CPU-safe alternative:
+      # - WHISPER_COMPUTE_TYPE=int8
       - WHISPER_MODEL_CACHE_DIR=/app/models/whisper
       - EMOTION_MODEL_CACHE_DIR=/app/models/emotion
       - TONE_MODEL_CACHE_DIR=/app/models/tone
@@ -45,6 +47,9 @@ services:
       - transcription-network
     env_file:
       - .env
+    gpus: all
+    # CPU-safe alternative:
+    # remove `gpus: all`
 
   # PostgreSQL Database
   postgres:
@@ -76,7 +81,7 @@ services:
       context: .
       dockerfile: Dockerfile
       target: celery
-    command: celery -A app.core.celery worker --loglevel=info
+    command: celery -A app.core.celery worker --loglevel=info --pool=solo --concurrency=1
     environment:
       - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       - JWT_SECRET_KEY=${JWT_SECRET_KEY}
@@ -89,7 +94,9 @@ services:
       - MINIO_SECRET_KEY=minioadmin
       - SHERPA_MODEL_DIR=/app/models/sherpa
       - WHISPER_MODEL_ID=deepdml/faster-whisper-large-v3-turbo-ct2
-      - WHISPER_COMPUTE_TYPE=int8
+      - WHISPER_COMPUTE_TYPE=float16
+      # CPU-safe alternative:
+      # - WHISPER_COMPUTE_TYPE=int8
       - WHISPER_MODEL_CACHE_DIR=/app/models/whisper
       - EMOTION_MODEL_CACHE_DIR=/app/models/emotion
       - TONE_MODEL_CACHE_DIR=/app/models/tone
@@ -111,6 +118,9 @@ services:
       - transcription-network
     env_file:
       - .env
+    gpus: all
+    # CPU-safe alternative:
+    # remove `gpus: all`
 
   # MinIO Object Storage
   minio:

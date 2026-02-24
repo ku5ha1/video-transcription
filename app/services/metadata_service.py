@@ -1,4 +1,5 @@
 import os
+from concurrent.futures import ThreadPoolExecutor
 import torch
 import torchaudio
 import numpy as np
@@ -30,15 +31,34 @@ class MetadataService:
         )
         self.audio_model.eval()
         logger.info("Audio Emotion Model loaded successfully")
+        self.metadata_executor = ThreadPoolExecutor(max_workers=2)
 
         # Text Tone Classifier (DeBERTa)
         logger.info("Loading Text Tone Classifier: cross-encoder/nli-deberta-v3-small")
-        self.tone_classifier = pipeline(
-            "zero-shot-classification",
-            model="cross-encoder/nli-deberta-v3-small",
-            device=0 if settings.device == "cuda" and torch.cuda.is_available() else -1,
-            model_kwargs={"cache_dir": settings.tone_model_cache_dir},
-        )
+        tone_device = 0 if settings.device == "cuda" and torch.cuda.is_available() else -1
+        try:
+            self.tone_classifier = pipeline(
+                "zero-shot-classification",
+                model="cross-encoder/nli-deberta-v3-small",
+                device=tone_device,
+                model_kwargs={"cache_dir": settings.tone_model_cache_dir},
+            )
+        except RuntimeError as e:
+            if tone_device == 0 and "Cannot re-initialize CUDA in forked subprocess" in str(
+                e
+            ):
+                logger.warning(
+                    "Tone classifier CUDA init failed in forked process, using CPU",
+                    exc_info=True,
+                )
+                self.tone_classifier = pipeline(
+                    "zero-shot-classification",
+                    model="cross-encoder/nli-deberta-v3-small",
+                    device=-1,
+                    model_kwargs={"cache_dir": settings.tone_model_cache_dir},
+                )
+            else:
+                raise
         logger.info("Text Tone Classifier loaded successfully")
 
         # Tone labels for meeting context
@@ -157,14 +177,17 @@ class MetadataService:
         Returns:
             Dictionary with Emotion and Tone
         """
-        # Detect text tone (always available)
-        tone = self.detect_text_tone(text)
-
-        # Detect audio emotion if audio is provided
+        # Run tone and emotion detection concurrently when audio is available.
         if audio_chunk is not None and sample_rate is not None:
-            emotion = self.detect_audio_emotion(audio_chunk, sample_rate)
+            tone_future = self.metadata_executor.submit(self.detect_text_tone, text)
+            emotion_future = self.metadata_executor.submit(
+                self.detect_audio_emotion, audio_chunk, sample_rate
+            )
+            tone = tone_future.result()
+            emotion = emotion_future.result()
         else:
-            # Fallback: use tone as emotion if no audio
+            # Detect text tone only when no audio is available.
+            tone = self.detect_text_tone(text)
             emotion = tone
 
         return {"Emotion": emotion, "Tone": tone}
