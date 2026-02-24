@@ -1,9 +1,11 @@
 import os
 from pydantic_settings import BaseSettings
+from pydantic import ConfigDict
 from typing import List
 
 
 class Settings(BaseSettings):
+    model_config = ConfigDict(env_file=".env", extra="ignore")
     # App settings
     app_name: str = "Video Transcription API"
     debug: bool = False
@@ -15,14 +17,14 @@ class Settings(BaseSettings):
     # Whisper settings
     whisper_model_id: str = "deepdml/faster-whisper-large-v3-turbo-ct2"
     whisper_compute_type: str = "int8"
-    whisper_model_cache_dir: str = "/app/models/whisper"
+    whisper_model_cache_dir: str = "models/whisper"
     whisper_language: str = ""  # Auto-detect if empty
 
     # Enhanced NLP Model settings
     emotion_model_id: str = "Dpngtm/wav2vec2-emotion-recognition"
-    emotion_model_cache_dir: str = "/app/models/emotion"
+    emotion_model_cache_dir: str = "models/emotion"
     tone_model_id: str = "cross-encoder/nli-deberta-v3-small"
-    tone_model_cache_dir: str = "/app/models/tone"
+    tone_model_cache_dir: str = "models/tone"
 
     # Sherpa-ONNX Diarization settings
     sherpa_model_dir: str = os.getenv("SHERPA_MODEL_DIR", "sherpa-onnx")
@@ -59,15 +61,11 @@ class Settings(BaseSettings):
 
     # Qdrant
     qdrant_url: str = "http://localhost:6333"
-    qdrant_model_cache: str = "/app/models/qdrant"
+    qdrant_model_cache: str = "models/qdrant"
 
     # Gemini
     gemini_api_key: str = os.getenv("GEMINI_API_KEY", "")
     gemini_model: str = "gemini-2.5-flash"
-
-    class Config:
-        env_file = ".env"
-        extra = "ignore"  # Allow extra fields from .env
 
 
 settings = Settings()
