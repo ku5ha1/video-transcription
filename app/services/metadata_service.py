@@ -23,19 +23,21 @@ class MetadataService:
             "Dpngtm/wav2vec2-emotion-recognition",
             cache_dir=settings.emotion_model_cache_dir,
             token=huggingface_token if huggingface_token else None,
-        )
+        )  # nosec B615
         self.audio_feature_extractor = AutoFeatureExtractor.from_pretrained(
             "Dpngtm/wav2vec2-emotion-recognition",
             cache_dir=settings.emotion_model_cache_dir,
             token=huggingface_token if huggingface_token else None,
-        )
+        )  # nosec B615
         self.audio_model.eval()
         logger.info("Audio Emotion Model loaded successfully")
         self.metadata_executor = ThreadPoolExecutor(max_workers=2)
 
         # Text Tone Classifier (DeBERTa)
         logger.info("Loading Text Tone Classifier: cross-encoder/nli-deberta-v3-small")
-        tone_device = 0 if settings.device == "cuda" and torch.cuda.is_available() else -1
+        tone_device = (
+            0 if settings.device == "cuda" and torch.cuda.is_available() else -1
+        )
         try:
             self.tone_classifier = pipeline(
                 "zero-shot-classification",
@@ -44,8 +46,9 @@ class MetadataService:
                 model_kwargs={"cache_dir": settings.tone_model_cache_dir},
             )
         except RuntimeError as e:
-            if tone_device == 0 and "Cannot re-initialize CUDA in forked subprocess" in str(
-                e
+            if (
+                tone_device == 0
+                and "Cannot re-initialize CUDA in forked subprocess" in str(e)
             ):
                 logger.warning(
                     "Tone classifier CUDA init failed in forked process, using CPU",

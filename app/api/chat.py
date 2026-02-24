@@ -8,7 +8,15 @@ from app.core.logging import get_logger
 
 logger = get_logger("api.chat")
 router = APIRouter()
-chat_service = ChatService()
+_chat_service: Optional[ChatService] = None
+
+
+def get_chat_service() -> ChatService:
+    """Lazily initialize ChatService to avoid heavy import-time side effects."""
+    global _chat_service
+    if _chat_service is None:
+        _chat_service = ChatService()
+    return _chat_service
 
 
 class ChatRequest(BaseModel):
@@ -53,7 +61,7 @@ async def chat_with_video(
     # For now, we trust the user_id filtering in vector search
 
     # Process chat query
-    result = await chat_service.chat(
+    result = await get_chat_service().chat(
         query=request.query,
         user_id=str(current_user.id),
         video_id=video_id,
@@ -78,7 +86,7 @@ async def chat_general(
     """
     logger.info(f"General chat request from {current_user.email}")
 
-    result = await chat_service.chat(
+    result = await get_chat_service().chat(
         query=request.query,
         user_id=str(current_user.id),
         video_id=request.video_id,

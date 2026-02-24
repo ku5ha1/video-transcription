@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # FastAPI Application
   app:
@@ -38,6 +36,8 @@ services:
       - qdrant
     volumes:
       - ./app:/app/app
+      - ./tests:/app/tests
+      - ./conftest.py:/app/conftest.py
       - shared_files:/tmp/shared
       - whisper_models:/app/models/whisper
       - emotion_models:/app/models/emotion
@@ -109,6 +109,8 @@ services:
       - minio
     volumes:
       - ./app:/app/app
+      - ./tests:/app/tests
+      - ./conftest.py:/app/conftest.py
       - shared_files:/tmp/shared
       - whisper_models:/app/models/whisper
       - emotion_models:/app/models/emotion

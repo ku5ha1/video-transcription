@@ -68,6 +68,13 @@ jobs:
 
       - name: Validate docker-compose.yml
         run: |
+          cp .env.example .env
+          export POSTGRES_USER=postgres
+          export POSTGRES_PASSWORD=password
+          export POSTGRES_DB=transcription_db
+          export JWT_SECRET_KEY=ci-placeholder-secret
+          export HUGGING_FACE_TOKEN=ci-placeholder-token
+          export GEMINI_API_KEY=ci-placeholder-key
           docker compose config > /dev/null
           echo "✓ docker-compose.yml is valid"
 

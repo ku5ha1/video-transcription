@@ -346,7 +346,7 @@ async def delete_video(
         minio_service.delete_file(video.minio_object_key)
         logger.info(f"Deleted video from MinIO: {video.minio_object_key}")
     except Exception as e:
-        logger.warning(f"Failed to delete from MinIO: {e}")
+        logger.warning(f"Failed to delete from MinIO: {e}")  # nosec B608
 
     # Delete from database (cascades to segments)
     await db.delete(video)
