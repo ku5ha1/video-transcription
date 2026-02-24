@@ -1,4 +1,6 @@
 import os
+import tempfile
+from pathlib import Path
 from typing import List, Optional
 from qdrant_client import QdrantClient
 from qdrant_client.models import (
@@ -24,7 +26,7 @@ class VectorStoreService:
         self.qdrant_url = settings.qdrant_url
         self.collection_name = "transcriptions"
         self.vector_size = 384  # all-MiniLM-L6-v2 dimension
-        self.model_cache_dir = os.getenv("QDRANT_MODEL_CACHE", "/app/models/qdrant")
+        self.model_cache_dir = self._resolve_model_cache_dir()
 
         # Initialize Qdrant client
         self.client = QdrantClient(url=self.qdrant_url)
@@ -37,6 +39,26 @@ class VectorStoreService:
         )
 
         logger.info("VectorStoreService initialized")
+
+    def _resolve_model_cache_dir(self) -> str:
+        """Pick a writable cache directory for embedding model artifacts."""
+        configured_dir = os.getenv("QDRANT_MODEL_CACHE", settings.qdrant_model_cache)
+        candidates = [
+            Path(configured_dir),
+            Path.cwd() / ".cache" / "qdrant",
+            Path.home() / ".cache" / "qdrant",
+            Path(tempfile.gettempdir()) / "qdrant-cache",
+        ]
+
+        for candidate in candidates:
+            try:
+                candidate.mkdir(parents=True, exist_ok=True)
+                return str(candidate)
+            except (PermissionError, FileNotFoundError):
+                continue
+
+        # Last resort: this may still fail later, but preserves prior behavior.
+        return configured_dir
 
     def init_collection(self) -> bool:
         """Initialize Qdrant collection with correct configuration on startup"""

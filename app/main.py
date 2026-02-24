@@ -51,8 +51,8 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, rate_limit_exception_handler)
 app.add_middleware(SlowAPIMiddleware)
 
-# Initialize vector store service
-vector_service = VectorStoreService()
+# Initialize vector store service lazily during startup
+vector_service = None
 
 # Include routers
 app.include_router(web.router, tags=["web"])  # Web UI routes (no prefix)
@@ -64,6 +64,7 @@ app.include_router(health.router, tags=["health"])
 
 @app.on_event("startup")
 async def startup_event():
+    global vector_service
     logger.info("Starting Video Transcription API")
     # Initialize database (for development - use Alembic in production)
     if settings.debug:
@@ -75,10 +76,14 @@ async def startup_event():
     logger.info("Redis client initialized")
 
     # Initialize Qdrant collection
-    if vector_service.init_collection():
-        logger.info("Qdrant collection initialized")
-    else:
-        logger.warning("Qdrant collection initialization failed")
+    try:
+        vector_service = VectorStoreService()
+        if vector_service.init_collection():
+            logger.info("Qdrant collection initialized")
+        else:
+            logger.warning("Qdrant collection initialization failed")
+    except Exception as e:
+        logger.warning(f"Vector store initialization skipped: {e}")
 
 
 @app.on_event("shutdown")
